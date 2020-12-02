@@ -288,7 +288,7 @@ class BIP68_112_113Test(BitcoinTestFramework):
 
         success_txs = []
         # BIP113 tx, -1 CSV tx and empty stack CSV tx should succeed
-        bip113tx_v1.nLockTime = self.last_block_time - 600 * 5  # = MTP of prior block (not <) but < time put on current block
+        bip113tx_v1.nLockTime = self.last_block_time  # = MTP of prior block (not <) but < time put on current block
         self.miniwallet.sign_tx(bip113tx_v1)
         success_txs.append(bip113tx_v1)
         success_txs.append(bip112tx_special_v1)
@@ -308,7 +308,7 @@ class BIP68_112_113Test(BitcoinTestFramework):
 
         success_txs = []
         # BIP113 tx, -1 CSV tx and empty stack CSV tx should succeed
-        bip113tx_v2.nLockTime = self.last_block_time - 600 * 5  # = MTP of prior block (not <) but < time put on current block
+        bip113tx_v2.nLockTime = self.last_block_time  # = MTP of prior block (not <) but < time put on current block
         self.miniwallet.sign_tx(bip113tx_v2)
         success_txs.append(bip113tx_v2)
         success_txs.append(bip112tx_special_v2)
@@ -334,17 +334,17 @@ class BIP68_112_113Test(BitcoinTestFramework):
 
         self.log.info("BIP 113 tests")
         # BIP 113 tests should now fail regardless of version number if nLockTime isn't satisfied by new rules
-        bip113tx_v1.nLockTime = self.last_block_time - 600 * 5  # = MTP of prior block (not <) but < time put on current block
+        bip113tx_v1.nLockTime = self.last_block_time  # = MTP of prior block (not <) but < time put on current block
         self.miniwallet.sign_tx(bip113tx_v1)
-        bip113tx_v2.nLockTime = self.last_block_time - 600 * 5  # = MTP of prior block (not <) but < time put on current block
+        bip113tx_v2.nLockTime = self.last_block_time  # = MTP of prior block (not <) but < time put on current block
         self.miniwallet.sign_tx(bip113tx_v2)
         for bip113tx in [bip113tx_v1, bip113tx_v2]:
             self.send_blocks([self.create_test_block([bip113tx])], success=False, reject_reason='bad-txns-nonfinal')
 
         # BIP 113 tests should now pass if the locktime is < MTP
-        bip113tx_v1.nLockTime = self.last_block_time - 600 * 5 - 1  # < MTP of prior block
+        bip113tx_v1.nLockTime = self.last_block_time - 1  # < MTP of prior block
         self.miniwallet.sign_tx(bip113tx_v1)
-        bip113tx_v2.nLockTime = self.last_block_time - 600 * 5 - 1  # < MTP of prior block
+        bip113tx_v2.nLockTime = self.last_block_time - 1  # < MTP of prior block
         self.miniwallet.sign_tx(bip113tx_v2)
         for bip113tx in [bip113tx_v1, bip113tx_v2]:
             self.send_blocks([self.create_test_block([bip113tx])])

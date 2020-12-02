@@ -52,7 +52,6 @@ from test_framework.wallet import (
 
 DIFFICULTY_ADJUSTMENT_INTERVAL = 144
 MAX_FUTURE_BLOCK_TIME = 2 * 3600
-MAX_TIMEWARP = 600
 VERSIONBITS_TOP_BITS = 0x20000000
 VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT = 28
 DEFAULT_BLOCK_MIN_TX_FEE = 1 # default `-blockmintxfee` setting [sat/kvB]
@@ -191,7 +190,7 @@ class MiningTest(BitcoinTestFramework):
             self.restart_node(0)
 
     def test_timewarp(self):
-        self.log.info("Test timewarp attack mitigation (BIP94)")
+        self.log.info("Test the timestamp floor at a BIP94 retarget boundary")
         node = self.nodes[0]
         self.restart_node(0, extra_args=['-test=bip94'])
 
@@ -210,11 +209,12 @@ class MiningTest(BitcoinTestFramework):
         self.generate(self.wallet, 1, sync_fun=self.no_op)
         assert_equal(node.getblock(node.getbestblockhash())['time'], t + MAX_FUTURE_BLOCK_TIME)
 
-        self.log.info("First block template of retarget period can't use wall clock time")
-        self.nodes[0].setmocktime(t)
-        # The template will have an adjusted timestamp, which we then modify
+        self.log.info("Sequential timestamps supersede the BIP94 timewarp floor")
+        previous_time = node.getblockheader(node.getbestblockhash())['time']
         tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
-        assert_greater_than_or_equal(tmpl['curtime'], t + MAX_FUTURE_BLOCK_TIME - MAX_TIMEWARP)
+        # MTP(1) requires parent time + 1, which is stricter than BIP94's
+        # parent time - MAX_TIMEWARP allowance.
+        assert_equal(tmpl['curtime'], previous_time + 1)
         # mintime and curtime should match
         assert_equal(tmpl['mintime'], tmpl['curtime'])
 
@@ -234,18 +234,15 @@ class MiningTest(BitcoinTestFramework):
         }), None)
 
         bad_block = copy.deepcopy(block)
-        bad_block.nTime = t
+        bad_block.nTime = previous_time
         bad_block.solve()
-        assert_raises_rpc_error(-25, 'time-timewarp-attack', lambda: node.submitheader(hexdata=CBlockHeader(bad_block).serialize().hex()))
+        assert_raises_rpc_error(-25, 'time-too-old', lambda: node.submitheader(hexdata=CBlockHeader(bad_block).serialize().hex()))
 
-        self.log.info("Test timewarp protection boundary")
-        bad_block.nTime = t + MAX_FUTURE_BLOCK_TIME - MAX_TIMEWARP - 1
-        bad_block.solve()
-        assert_raises_rpc_error(-25, 'time-timewarp-attack', lambda: node.submitheader(hexdata=CBlockHeader(bad_block).serialize().hex()))
-
-        bad_block.nTime = t + MAX_FUTURE_BLOCK_TIME - MAX_TIMEWARP
-        bad_block.solve()
-        node.submitheader(hexdata=CBlockHeader(bad_block).serialize().hex())
+        self.log.info("Test sequential protection boundary")
+        valid_block = copy.deepcopy(block)
+        valid_block.nTime = previous_time + 1
+        valid_block.solve()
+        node.submitheader(hexdata=CBlockHeader(valid_block).serialize().hex())
 
     def test_pruning(self):
         self.log.info("Test that submitblock stores previously pruned block")

@@ -80,6 +80,15 @@ class WalletMigrationTest(BitcoinTestFramework):
         assert_equal(info["format"], "bdb")
         return wallet
 
+    def generate_legacy_blocks(self, num_blocks):
+        for _ in range(num_blocks):
+            tip_time = self.old_node.getblockheader(self.old_node.getbestblockhash())["time"]
+            for node in self.nodes:
+                node.setmocktime(tip_time + 1)
+            self.generate(self.old_node, 1)
+        for node in self.nodes:
+            node.setmocktime(0)
+
     def assert_addr_info_equal(self, addr_info, addr_info_old):
         assert_equal(addr_info["address"], addr_info_old["address"])
         assert_equal(addr_info["scriptPubKey"], addr_info_old["scriptPubKey"])
@@ -1483,7 +1492,7 @@ class WalletMigrationTest(BitcoinTestFramework):
         # Check that the miniscript can be spent by the legacy wallet
         send_res = wallet.send(outputs=[{some_keys_addr: 1},{all_keys_addr: 0.75}], include_watching=True, change_address=def_wallet.getnewaddress())
         assert_equal(send_res["complete"], True)
-        self.generate(self.old_node, 6)
+        self.generate_legacy_blocks(6)
         assert_equal(wallet.getbalances()["watchonly"]["trusted"], 1.75)
 
         _, wallet = self.migrate_and_get_rpc("miniscript")
@@ -1534,7 +1543,7 @@ class WalletMigrationTest(BitcoinTestFramework):
         # Check that the rawtr can be spent by the legacy wallet
         send_res = wallet.send(outputs=[{rawtr_addr: 0.5}], include_watching=True, change_address=def_wallet.getnewaddress(), inputs=[{"txid": txid, "vout": rawtr_vout}])
         assert_equal(send_res["complete"], True)
-        self.generate(self.old_node, 6)
+        self.generate_legacy_blocks(6)
         assert_equal(wallet.getbalances()["watchonly"]["trusted"], 5.5)
         assert_equal(wallet.getbalances()["mine"]["trusted"], 0)
 

@@ -102,6 +102,18 @@ static std::unique_ptr<CBlockIndex> CreateBlockIndex(int nHeight, CBlockIndex* a
     return index;
 }
 
+static int64_t LegacyMedianTimePast11(const std::vector<int64_t>& block_times)
+{
+    constexpr int LEGACY_MEDIAN_TIME_SPAN{11};
+    const auto use_count = std::min<size_t>(LEGACY_MEDIAN_TIME_SPAN, block_times.size());
+    std::vector<int64_t> window;
+    window.reserve(use_count);
+    const auto begin = block_times.end() - use_count;
+    window.insert(window.end(), begin, block_times.end());
+    std::sort(window.begin(), window.end());
+    return window[window.size() / 2];
+}
+
 // Test suite for ancestor feerate transaction selection.
 // Implemented as an additional function, rather than a separate test case,
 // to allow reusing the blockchain created in CreateNewBlock_validity.
@@ -736,6 +748,11 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     static_assert(std::size(BLOCKINFO) == 110, "Should have 110 blocks to import");
     int baseheight = 0;
     std::vector<CTransactionRef> txFirst;
+    std::vector<int64_t> legacy_chain_times;
+    {
+        LOCK(cs_main);
+        legacy_chain_times.push_back(Assert(m_node.chainman)->ActiveChain().Tip()->GetBlockTime());
+    }
     for (const auto& bi : BLOCKINFO) {
         const int current_height{mining->getTip()->height};
 
@@ -754,7 +771,14 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         {
             LOCK(cs_main);
             block.nVersion = VERSIONBITS_TOP_BITS;
-            block.nTime = Assert(m_node.chainman)->ActiveChain().Tip()->GetMedianTimePast()+1;
+            const int64_t planned_time = LegacyMedianTimePast11(legacy_chain_times) + 1;
+            CBlockIndex* active_chain_tip{Assert(m_node.chainman)->ActiveChain().Tip()};
+            // Keep historical block headers stable for precomputed nonces while still
+            // satisfying ContextualCheckBlockHeader() when nMedianTimeSpan is reduced.
+            if (active_chain_tip->nTime >= planned_time) {
+                active_chain_tip->nTime = planned_time - 1;
+            }
+            block.nTime = planned_time;
             txCoinbase.version = 1;
             txCoinbase.vin[0].scriptSig = CScript{} << (current_height + 1) << bi.extranonce;
             txCoinbase.vout.resize(1); // Ignore the (optional) segwit commitment added by CreateNewBlock (as the hardcoded nonces don't account for this)
@@ -782,6 +806,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
             // we explicitly check this.
             auto maybe_new_tip{Assert(m_node.chainman)->ActiveChain().Tip()};
             BOOST_REQUIRE_EQUAL(maybe_new_tip->GetBlockHash(), block.GetHash());
+            legacy_chain_times.push_back(block.nTime);
         }
         if (current_height % 2 == 0) {
             block_template = block_template->waitNext();

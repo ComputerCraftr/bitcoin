@@ -324,6 +324,7 @@ class BIP68Test(BitcoinTestFramework):
         # diagram above).
         # This would cause tx2 to be added back to the mempool, which in turn causes
         # tx3 to be removed.
+        cur_time = max(cur_time, tmpl["mintime"])
         for i in range(2):
             block = create_block(tmpl=tmpl, ntime=cur_time)
             block.solve()

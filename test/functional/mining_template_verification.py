@@ -178,13 +178,13 @@ class MiningTemplateVerificationTest(BitcoinTestFramework):
     def transaction_test(self, node, block_0_height, tx):
         self.log.info("make block template with a transaction")
 
-        block_1 = node.getblock(node.getblockhash(block_0_height + 1))
         block_2_hash = node.getblockhash(block_0_height + 2)
 
+        block_2 = node.getblock(block_2_hash)
         block_3 = create_block(
             int(block_2_hash, 16),
             create_coinbase(block_0_height + 3),
-            block_1["mediantime"] + 1,
+            block_2["mediantime"] + 1,
             txlist=[tx["hex"]],
         )
         assert_equal(len(block_3.vtx), 2)
@@ -199,8 +199,8 @@ class MiningTemplateVerificationTest(BitcoinTestFramework):
     def overspending_transaction_test(self, node, block_0_height, tx):
         self.log.info("Add an transaction that spends too much")
 
-        block_1 = node.getblock(node.getblockhash(block_0_height + 1))
         block_2_hash = node.getblockhash(block_0_height + 2)
+        block_2 = node.getblock(block_2_hash)
 
         bad_tx = copy.deepcopy(tx)
         bad_tx["tx"].vout[0].nValue = 10000000000
@@ -212,7 +212,7 @@ class MiningTemplateVerificationTest(BitcoinTestFramework):
         block_3 = create_block(
             int(block_2_hash, 16),
             create_coinbase(block_0_height + 3),
-            block_1["mediantime"] + 1,
+            block_2["mediantime"] + 1,
             txlist=[bad_tx_hex],
         )
         assert_equal(len(block_3.vtx), 2)
@@ -222,8 +222,8 @@ class MiningTemplateVerificationTest(BitcoinTestFramework):
         assert_template(node, block_3, "bad-txns-in-belowout")
 
     def spend_twice_test(self, node, block_0_height, tx):
-        block_1 = node.getblock(node.getblockhash(block_0_height + 1))
         block_2_hash = node.getblockhash(block_0_height + 2)
+        block_2 = node.getblock(block_2_hash)
 
         self.log.info("Can't spend coins twice")
         tx_hex = tx["tx"].serialize().hex()
@@ -240,7 +240,7 @@ class MiningTemplateVerificationTest(BitcoinTestFramework):
         block_3 = create_block(
             int(block_2_hash, 16),
             create_coinbase(block_0_height + 3),
-            block_1["mediantime"] + 1,
+            block_2["mediantime"] + 1,
             txlist=[tx_hex, tx_2_hex],
         )
         assert_equal(len(block_3.vtx), 3)

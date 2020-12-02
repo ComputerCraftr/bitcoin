@@ -113,10 +113,9 @@ BOOST_AUTO_TEST_CASE(findearliestatleast_test)
             vBlocksMain[i].nTime = i;
             vBlocksMain[i].nTimeMax = i;
         } else {
-            // randomly choose something in the range [MTP, MTP*2]
-            int64_t medianTimePast = vBlocksMain[i].GetMedianTimePast();
-            int r{int(m_rng.randrange(medianTimePast))};
-            vBlocksMain[i].nTime = uint32_t(r + medianTimePast);
+            // Choose a valid timestamp with bounded random skew from the parent MTP.
+            const int64_t median_time_past{Assert(vBlocksMain[i].pprev)->GetMedianTimePast()};
+            vBlocksMain[i].nTime = uint32_t(median_time_past + 1 + m_rng.randrange(10));
             vBlocksMain[i].nTimeMax = std::max(vBlocksMain[i].nTime, vBlocksMain[i-1].nTimeMax);
         }
     }

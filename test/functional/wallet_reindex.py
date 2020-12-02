@@ -52,8 +52,8 @@ class WalletReindexTest(BitcoinTestFramework):
 
         # Depending on the wallet type, the birth time changes.
         wallet_birthtime = wallet_watch_only.getwalletinfo()['birthtime']
-        # As blocks were generated every 10 min, the chain MTP timestamp is node_time - 60 min.
-        assert_equal(self.node_time - BLOCK_TIME * 6, wallet_birthtime)
+        # With one-block MTP, the wallet birth time is the tip's timestamp.
+        assert_equal(self.node_time - BLOCK_TIME, wallet_birthtime)
 
         # Rescan the wallet to detect the missing transaction
         wallet_watch_only.rescanblockchain()

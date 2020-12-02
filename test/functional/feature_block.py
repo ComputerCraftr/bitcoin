@@ -709,14 +709,14 @@ class FullBlockTest(BitcoinTestFramework):
 
         self.log.info("Reject a block with timestamp before MedianTimePast")
         b54 = self.next_block(54, spend=out[15])
-        b54.nTime = b35.nTime - 1
+        b54.nTime = b53.nTime
         b54.solve()
         self.send_blocks([b54], False, force_send=True, reject_reason='time-too-old', reconnect=True)
 
         # valid timestamp
         self.move_tip(53)
         b55 = self.next_block(55, spend=out[15])
-        self.update_block(55, [], nTime=b35.nTime)
+        self.update_block(55, [], nTime=b53.nTime + 1)
         self.send_blocks([b55], True)
         self.save_spendable_output()
 

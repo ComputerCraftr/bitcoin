@@ -337,15 +337,20 @@ void check_computeblockversion(VersionBitsCache& versionbitscache, const Consens
             BOOST_CHECK_EQUAL(versionbitscache.ComputeBlockVersion(lastBlock, params) & (1 << bit), 0);
             BOOST_CHECK(!versionbitscache.IsActiveAfter(lastBlock, params, dep));
         }
-        // Now mine 5 more blocks at the start time -- MTP should not have passed yet, so
-        // CBV should still not yet set the bit.
+        // Mine enough blocks at nStartTime to keep MTP below nStartTime.
+        // For nMedianTimeSpan==1 there is no lag; for 11 there are 5 lag blocks.
         nTime = nStartTime;
-        for (uint32_t i = period - 4; i <= period; i++) {
-            lastBlock = firstChain.Mine(period + i, nTime, VERSIONBITS_LAST_OLD_BLOCK_VERSION).Tip();
+        for (uint32_t i = 0; i < CBlockIndex::nMedianTimeSpan / 2; ++i) {
+            const uint32_t next_height = (period * 2) - 4 + i;
+            lastBlock = firstChain.Mine(next_height, nTime, VERSIONBITS_LAST_OLD_BLOCK_VERSION).Tip();
             BOOST_CHECK_EQUAL(versionbitscache.ComputeBlockVersion(lastBlock, params) & (1 << bit), 0);
             BOOST_CHECK(!versionbitscache.IsActiveAfter(lastBlock, params, dep));
         }
-        // Next we will advance to the next period and transition to STARTED,
+        // Next we will advance to the next period and transition to STARTED.
+        if (CBlockIndex::nMedianTimeSpan / 2 == 0) {
+            // Keep chain progression consistent when there is no MTP lag.
+            lastBlock = firstChain.Mine(period * 2, nTime, VERSIONBITS_LAST_OLD_BLOCK_VERSION).Tip();
+        }
     }
 
     lastBlock = firstChain.Mine(period * 3, nTime, VERSIONBITS_LAST_OLD_BLOCK_VERSION).Tip();
