@@ -324,7 +324,9 @@ static RPCHelpMan getrawtransaction()
 
     if (hash == chainman.GetParams().GenesisBlock().hashMerkleRoot) {
         // Special exception for the genesis block coinbase transaction
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved");
+        //throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved");
+        LOCK(cs_main);
+        blockindex = chainman.m_blockman.LookupBlockIndex(chainman.GetParams().GetConsensus().hashGenesisBlock);
     }
 
     int verbosity{ParseVerbosity(request.params[1], /*default_verbosity=*/0, /*allow_bool=*/true)};
