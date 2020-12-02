@@ -253,16 +253,18 @@ void BlockManager::PruneOneBlockFile(const int fileNumber)
             pindex->nUndoPos = 0;
             m_dirty_blockindex.insert(pindex);
 
-            // Prune from m_blocks_unlinked -- any block we prune would have
-            // to be downloaded again in order to consider its chain, at which
-            // point it would be considered as a candidate for
-            // m_blocks_unlinked or setBlockIndexCandidates.
-            auto range = m_blocks_unlinked.equal_range(pindex->pprev);
-            while (range.first != range.second) {
-                std::multimap<CBlockIndex*, CBlockIndex*>::iterator _it = range.first;
-                range.first++;
-                if (_it->second == pindex) {
-                    m_blocks_unlinked.erase(_it);
+            if (pindex->pprev) {
+                // Prune from m_blocks_unlinked -- any block we prune would have
+                // to be downloaded again in order to consider its chain, at which
+                // point it would be considered as a candidate for
+                // m_blocks_unlinked or setBlockIndexCandidates.
+                auto range = m_blocks_unlinked.equal_range(pindex->pprev);
+                while (range.first != range.second) {
+                    std::multimap<CBlockIndex*, CBlockIndex*>::iterator _it = range.first;
+                    range.first++;
+                    if (_it->second == pindex) {
+                        m_blocks_unlinked.erase(_it);
+                    }
                 }
             }
         }
@@ -674,7 +676,7 @@ bool BlockManager::ReadBlockUndo(CBlockUndo& blockundo, const CBlockIndex& index
         // Read block
         HashVerifier verifier{filein}; // Use HashVerifier, as reserializing may lose data, c.f. commit d3424243
 
-        verifier << index.pprev->GetBlockHash();
+        verifier << (index.pprev ? index.pprev->GetBlockHash() : uint256::ZERO);
         verifier >> blockundo;
 
         uint256 hashChecksum;
@@ -958,7 +960,7 @@ bool BlockManager::WriteBlockUndo(const CBlockUndo& blockundo, BlockValidationSt
             {
                 // Calculate checksum
                 HashWriter hasher{};
-                hasher << block.pprev->GetBlockHash() << blockundo;
+                hasher << (block.pprev ? block.pprev->GetBlockHash() : uint256::ZERO) << blockundo;
                 // Write undo data & checksum
                 fileout << blockundo << hasher.GetHash();
             }

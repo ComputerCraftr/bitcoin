@@ -99,6 +99,8 @@ FUZZ_TARGET(utxo_total_supply)
 
     // Update internal state to chain tip
     StoreLastTxo();
+    // Add genesis coinbase reward to circulation
+    circulation += GetBlockSubsidy(ActiveHeight(), Params().GetConsensus());
     UpdateUtxoStats();
     assert(ActiveHeight() == 0);
     // Get at which height we duplicate the coinbase

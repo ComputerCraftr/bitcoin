@@ -135,7 +135,6 @@ bool CoinStatsIndex::CustomAppend(const interfaces::BlockInfo& block)
     const CAmount block_subsidy{GetBlockSubsidy(block.height, Params().GetConsensus())};
     m_total_subsidy += block_subsidy;
 
-    // Ignore genesis block
     if (block.height > 0) {
         uint256 expected_block_hash{*Assert(block.prev_hash)};
         if (m_current_block_hash != expected_block_hash) {
@@ -143,64 +142,61 @@ bool CoinStatsIndex::CustomAppend(const interfaces::BlockInfo& block)
                       m_current_block_hash.ToString(), expected_block_hash.ToString());
             return false;
         }
+    }
 
-        // Add the new utxos created from the block
-        assert(block.data);
-        for (size_t i = 0; i < block.data->vtx.size(); ++i) {
-            const auto& tx{block.data->vtx.at(i)};
-            const bool is_coinbase{tx->IsCoinBase()};
+    // Add the new utxos created from the block
+    assert(block.data);
+    for (size_t i = 0; i < block.data->vtx.size(); ++i) {
+        const auto& tx{block.data->vtx.at(i)};
+        const bool is_coinbase{tx->IsCoinBase()};
 
-            // Skip duplicate txid coinbase transactions (BIP30).
-            if (is_coinbase && IsBIP30Unspendable(block.hash, block.height)) {
-                m_total_unspendables_bip30 += block_subsidy;
+        // Skip duplicate txid coinbase transactions (BIP30).
+        if (is_coinbase && IsBIP30Unspendable(block.hash, block.height)) {
+            m_total_unspendables_bip30 += block_subsidy;
+            continue;
+        }
+
+        for (uint32_t j = 0; j < tx->vout.size(); ++j) {
+            const CTxOut& out{tx->vout[j]};
+            const Coin coin{out, block.height, is_coinbase};
+            const COutPoint outpoint{tx->GetHash(), j};
+
+            // Skip unspendable coins
+            if (coin.out.scriptPubKey.IsUnspendable()) {
+                m_total_unspendables_scripts += coin.out.nValue;
                 continue;
             }
 
-            for (uint32_t j = 0; j < tx->vout.size(); ++j) {
-                const CTxOut& out{tx->vout[j]};
-                const Coin coin{out, block.height, is_coinbase};
-                const COutPoint outpoint{tx->GetHash(), j};
+            ApplyCoinHash(m_muhash, outpoint, coin);
 
-                // Skip unspendable coins
-                if (coin.out.scriptPubKey.IsUnspendable()) {
-                    m_total_unspendables_scripts += coin.out.nValue;
-                    continue;
-                }
-
-                ApplyCoinHash(m_muhash, outpoint, coin);
-
-                if (is_coinbase) {
-                    m_total_coinbase_amount += coin.out.nValue;
-                } else {
-                    m_total_new_outputs_ex_coinbase_amount += coin.out.nValue;
-                }
-
-                ++m_transaction_output_count;
-                m_total_amount += coin.out.nValue;
-                m_bogo_size += GetBogoSize(coin.out.scriptPubKey);
+            if (is_coinbase) {
+                m_total_coinbase_amount += coin.out.nValue;
+            } else {
+                m_total_new_outputs_ex_coinbase_amount += coin.out.nValue;
             }
 
-            // The coinbase tx has no undo data since no former output is spent
-            if (!is_coinbase) {
-                const auto& tx_undo{Assert(block.undo_data)->vtxundo.at(i - 1)};
+            ++m_transaction_output_count;
+            m_total_amount += coin.out.nValue;
+            m_bogo_size += GetBogoSize(coin.out.scriptPubKey);
+        }
 
-                for (size_t j = 0; j < tx_undo.vprevout.size(); ++j) {
-                    const Coin& coin{tx_undo.vprevout[j]};
-                    const COutPoint outpoint{tx->vin[j].prevout.hash, tx->vin[j].prevout.n};
+        // The coinbase tx has no undo data since no former output is spent
+        if (!is_coinbase) {
+            const auto& tx_undo{Assert(block.undo_data)->vtxundo.at(i - 1)};
 
-                    RemoveCoinHash(m_muhash, outpoint, coin);
+            for (size_t j = 0; j < tx_undo.vprevout.size(); ++j) {
+                const Coin& coin{tx_undo.vprevout[j]};
+                const COutPoint outpoint{tx->vin[j].prevout.hash, tx->vin[j].prevout.n};
 
-                    m_total_prevout_spent_amount += coin.out.nValue;
+                RemoveCoinHash(m_muhash, outpoint, coin);
 
-                    --m_transaction_output_count;
-                    m_total_amount -= coin.out.nValue;
-                    m_bogo_size -= GetBogoSize(coin.out.scriptPubKey);
-                }
+                m_total_prevout_spent_amount += coin.out.nValue;
+
+                --m_transaction_output_count;
+                m_total_amount -= coin.out.nValue;
+                m_bogo_size -= GetBogoSize(coin.out.scriptPubKey);
             }
         }
-    } else {
-        // genesis block
-        m_total_unspendables_genesis_block += block_subsidy;
     }
 
     // If spent prevouts + block subsidy are still a higher amount than
@@ -393,21 +389,23 @@ bool CoinStatsIndex::RevertBlock(const interfaces::BlockInfo& block)
 {
     std::pair<uint256, DBVal> read_out;
 
-    // Ignore genesis block
-    if (block.height > 0) {
+    // Include genesis block
+    if (block.height >= 0) {
         if (!m_db->Read(DBHeightKey(block.height - 1), read_out)) {
             return false;
         }
 
-        uint256 expected_block_hash{*block.prev_hash};
-        if (read_out.first != expected_block_hash) {
-            LogWarning("previous block header belongs to unexpected block %s; expected %s",
-                      read_out.first.ToString(), expected_block_hash.ToString());
+        if (block.height > 0) {
+            uint256 expected_block_hash{*block.prev_hash};
+            if (read_out.first != expected_block_hash) {
+                LogWarning("previous block header belongs to unexpected block %s; expected %s",
+                        read_out.first.ToString(), expected_block_hash.ToString());
 
-            if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
-                LogError("previous block header not found; expected %s",
-                          expected_block_hash.ToString());
-                return false;
+                if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
+                    LogError("previous block header not found; expected %s",
+                            expected_block_hash.ToString());
+                    return false;
+                }
             }
         }
     }

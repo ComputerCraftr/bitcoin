@@ -35,6 +35,7 @@ class UnsupportedUtxoDbTest(BitcoinTestFramework):
         self.start_node(0)
         block = self.generate(self.nodes[0], 1, sync_fun=self.no_op)[-1]
         assert_equal(self.nodes[0].getbestblockhash(), block)
+        # Genesis coinbase not counted by old version
         assert_equal(self.nodes[0].gettxoutsetinfo()["total_amount"], 50)
         self.stop_nodes()
 
@@ -54,7 +55,8 @@ class UnsupportedUtxoDbTest(BitcoinTestFramework):
         self.log.info("Drop legacy utxo db")
         self.start_node(1, extra_args=["-reindex-chainstate"])
         assert_equal(self.nodes[1].getbestblockhash(), block)
-        assert_equal(self.nodes[1].gettxoutsetinfo()["total_amount"], 50)
+        # Genesis coinbase should be counted here
+        assert_equal(self.nodes[1].gettxoutsetinfo()["total_amount"], 100)
 
 
 if __name__ == "__main__":

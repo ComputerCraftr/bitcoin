@@ -174,9 +174,10 @@ class RawTransactionsTest(BitcoinTestFramework):
             self.nodes[n].reconsiderblock(block1)
             assert_equal(self.nodes[n].getbestblockhash(), block2)
 
-        self.log.info("Test getrawtransaction on genesis block coinbase returns an error")
-        block = self.nodes[0].getblock(self.nodes[0].getblockhash(0))
-        assert_raises_rpc_error(-5, "The genesis block coinbase is not considered an ordinary transaction", self.nodes[0].getrawtransaction, block['merkleroot'])
+            self.log.info("Test getrawtransaction on genesis block coinbase succeeds")
+            block = self.nodes[n].getblock(self.nodes[n].getblockhash(0))
+            genesis_tx = self.nodes[n].getrawtransaction(block['merkleroot'], True)
+            assert_equal(genesis_tx['txid'], block['merkleroot'])
 
     def getrawtransaction_verbosity_tests(self):
         tx = self.wallet.send_self_transfer(from_node=self.nodes[1])['txid']

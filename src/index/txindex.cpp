@@ -57,9 +57,6 @@ TxIndex::~TxIndex() = default;
 
 bool TxIndex::CustomAppend(const interfaces::BlockInfo& block)
 {
-    // Exclude genesis block transaction because outputs are not spendable.
-    if (block.height == 0) return true;
-
     assert(block.data);
     CDiskTxPos pos({block.file_number, block.data_pos}, GetSizeOfCompactSize(block.data->vtx.size()));
     std::vector<std::pair<Txid, CDiskTxPos>> vPos;
