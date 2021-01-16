@@ -145,7 +145,7 @@ bool CoinStatsIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 
             for (size_t j = 0; j < tx->vout.size(); ++j) {
                 const CTxOut& out{tx->vout[j]};
-                Coin coin{out, pindex->nHeight, tx->IsCoinBase()};
+                Coin coin{out, pindex->nHeight, tx->IsCoinBase(), tx->IsCoinStake()};
                 COutPoint outpoint{tx->GetHash(), static_cast<uint32_t>(j)};
 
                 // Skip unspendable coins
@@ -157,7 +157,7 @@ bool CoinStatsIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 
                 m_muhash.Insert(MakeUCharSpan(TxOutSer(outpoint, coin)));
 
-                if (tx->IsCoinBase()) {
+                if (tx->IsCoinBase() || tx->IsCoinStake()) {
                     m_block_coinbase_amount += coin.out.nValue;
                 } else {
                     m_block_new_outputs_ex_coinbase_amount += coin.out.nValue;
@@ -405,7 +405,7 @@ bool CoinStatsIndex::ReverseBlock(const CBlock& block, const CBlockIndex* pindex
         for (size_t j = 0; j < tx->vout.size(); ++j) {
             const CTxOut& out{tx->vout[j]};
             COutPoint outpoint{tx->GetHash(), static_cast<uint32_t>(j)};
-            Coin coin{out, pindex->nHeight, tx->IsCoinBase()};
+            Coin coin{out, pindex->nHeight, tx->IsCoinBase(), tx->IsCoinStake()};
 
             // Skip unspendable coins
             if (coin.out.scriptPubKey.IsUnspendable()) {
@@ -416,7 +416,7 @@ bool CoinStatsIndex::ReverseBlock(const CBlock& block, const CBlockIndex* pindex
 
             m_muhash.Remove(MakeUCharSpan(TxOutSer(outpoint, coin)));
 
-            if (tx->IsCoinBase()) {
+            if (tx->IsCoinBase() || tx->IsCoinStake()) {
                 m_block_coinbase_amount -= coin.out.nValue;
             } else {
                 m_block_new_outputs_ex_coinbase_amount -= coin.out.nValue;
