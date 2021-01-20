@@ -4666,13 +4666,13 @@ bool CWallet::GetBlockSigningPubKey(const CBlock& block, CPubKey& pubkey, bool& 
             hash = uint160(vSolutions[0]);
         if (provider && provider->GetCScript(CScriptID(hash), subscript)) {
             TxoutType scriptType = Solver(subscript, vSolutions);
-            if (fProofOfStake && (scriptType == TxoutType::MULTISIG /*|| scriptType == TxoutType::MULTISIG_DATA*/))
+            if (fProofOfStake && (scriptType == TxoutType::MULTISIG || scriptType == TxoutType::MULTISIG_DATA))
                 whichType = scriptType; // pubkey is retrieved from PoS output below
             else if (scriptType != TxoutType::WITNESS_V0_KEYHASH || !provider->GetPubKey(CKeyID(uint160(vSolutions[0])), pubkey))
                 return false;
         } else
             return false;
-    } else if (whichType == TxoutType::MULTISIG /*|| whichType == TxoutType::MULTISIG_DATA*/) {
+    } else if (whichType == TxoutType::MULTISIG || whichType == TxoutType::MULTISIG_DATA) {
         if (vSolutions.size() != 3 || vSolutions.front()[0] != 1 || vSolutions.back()[0] != 1)
             return false;
         pubkey = CPubKey(vSolutions[1]);
@@ -4687,7 +4687,7 @@ bool CWallet::GetBlockSigningPubKey(const CBlock& block, CPubKey& pubkey, bool& 
         if (outputType == TxoutType::PUBKEY) { // pubkey is revealed in p2pk output
             pubkey = CPubKey(vSolutions[0]); // use pubkey from output rather than input
             pubkeyInSig = true;
-        } else if (whichType == TxoutType::PUBKEY || whichType == TxoutType::MULTISIG /*|| whichType == TxoutType::MULTISIG_DATA*/) { // p2pk and multisig PoS inputs don't place the pubkey in the scriptSig
+        } else if (whichType == TxoutType::PUBKEY || whichType == TxoutType::MULTISIG || whichType == TxoutType::MULTISIG_DATA) { // p2pk and multisig PoS inputs don't place the pubkey in the scriptSig
             pubkeyInSig = false;
             if (outputType == TxoutType::PUBKEYHASH || outputType == TxoutType::WITNESS_V0_KEYHASH) {
                 std::unique_ptr<SigningProvider> provider = GetSolvingProvider(txout.scriptPubKey);
