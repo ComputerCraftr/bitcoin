@@ -369,6 +369,13 @@ void BitcoinGUI::createActions()
     m_mask_values_action->setStatusTip(tr("Mask the values in the Overview tab"));
     m_mask_values_action->setCheckable(true);
 
+    m_hide_orphans_action = new QAction(tr("&Hide orphan stakes"), this);
+    m_hide_orphans_action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_H));
+    m_hide_orphans_action->setStatusTip(tr("Hide orphan stakes in the transaction list"));
+    m_hide_orphans_action->setCheckable(true);
+    QSettings settings;
+    m_hide_orphans_action->setChecked(settings.value("fHideOrphans", true).toBool());
+
     connect(quitAction, &QAction::triggered, qApp, QApplication::quit);
     connect(aboutAction, &QAction::triggered, this, &BitcoinGUI::aboutClicked);
     connect(aboutQtAction, &QAction::triggered, qApp, QApplication::aboutQt);
@@ -438,6 +445,11 @@ void BitcoinGUI::createActions()
             m_wallet_controller->closeAllWallets(this);
         });
         connect(m_mask_values_action, &QAction::toggled, this, &BitcoinGUI::setPrivacy);
+        connect(m_hide_orphans_action, &QAction::toggled, [this](bool checked) {
+            BitcoinGUI::setOrphansHidden(checked);
+            QSettings settings;
+            settings.setValue("fHideOrphans", checked);
+        });
     }
 #endif // ENABLE_WALLET
 
@@ -483,6 +495,8 @@ void BitcoinGUI::createMenuBar()
         settings->addAction(changePassphraseAction);
         settings->addSeparator();
         settings->addAction(m_mask_values_action);
+        settings->addSeparator();
+        settings->addAction(m_hide_orphans_action);
         settings->addSeparator();
     }
     settings->addAction(optionsAction);
@@ -1459,6 +1473,12 @@ bool BitcoinGUI::isPrivacyModeActivated() const
 {
     assert(m_mask_values_action);
     return m_mask_values_action->isChecked();
+}
+
+bool BitcoinGUI::areOrphanStakesHidden() const
+{
+    assert(m_hide_orphans_action);
+    return m_hide_orphans_action->isChecked();
 }
 
 UnitDisplayStatusBarControl::UnitDisplayStatusBarControl(const PlatformStyle *platformStyle) :
