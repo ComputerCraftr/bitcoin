@@ -103,6 +103,8 @@ public:
 
     bool isPrivacyModeActivated() const;
 
+    bool areOrphanStakesHidden() const;
+
 protected:
     void changeEvent(QEvent *e) override;
     void closeEvent(QCloseEvent *event) override;
@@ -164,6 +166,7 @@ private:
     QAction* m_wallet_selector_label_action = nullptr;
     QAction* m_wallet_selector_action = nullptr;
     QAction* m_mask_values_action{nullptr};
+    QAction* m_hide_orphans_action{nullptr};
 
     QLabel *m_wallet_selector_label = nullptr;
     QComboBox* m_wallet_selector = nullptr;
@@ -217,6 +220,7 @@ Q_SIGNALS:
     /** Signal raised when RPC console shown */
     void consoleShown(RPCConsole* console);
     void setPrivacy(bool privacy);
+    void setOrphansHidden(bool hidden);
 
 public Q_SLOTS:
     /** Set number of connections shown in the UI */

@@ -321,3 +321,9 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
 }
+
+void OverviewPage::setOrphansHidden(bool hidden)
+{
+    if (filter)
+        filter->setHideOrphans(hidden);
+}
