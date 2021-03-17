@@ -1637,7 +1637,7 @@ static ThresholdConditionCache warningcache[VERSIONBITS_NUM_BITS] GUARDED_BY(cs_
 
 static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& consensusparams)
 {
-    unsigned int flags = SCRIPT_VERIFY_NONE;
+    unsigned int flags = MANDATORY_SCRIPT_VERIFY_FLAGS;
 
     // BIP16 didn't become active until Apr 1 2012 (on mainnet, and
     // retroactively applied to testnet)
@@ -1655,6 +1655,7 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     // deployment is defined).
     if (flags & SCRIPT_VERIFY_P2SH && DeploymentEnabled(consensusparams, Consensus::DEPLOYMENT_SEGWIT)) {
         flags |= SCRIPT_VERIFY_WITNESS;
+        flags |= SCRIPT_VERIFY_CLEANSTACK;
     }
 
     // Enforce the DERSIG (BIP66) rule
