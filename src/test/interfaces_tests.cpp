@@ -5,8 +5,9 @@
 #include <chainparams.h>
 #include <consensus/validation.h>
 #include <interfaces/chain.h>
-#include <test/util/setup_common.h>
 #include <script/solver.h>
+#include <test/util/setup_common.h>
+#include <util/time.h>
 #include <validation.h>
 
 #include <boost/test/unit_test.hpp>
@@ -108,6 +109,7 @@ BOOST_AUTO_TEST_CASE(findCommonAncestor)
     coinbaseKey.MakeNewKey(true);
     for (int i = 0; i < 20; ++i) {
         CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        SetMockTime(GetTime() + 1);
     }
     BOOST_CHECK_EQUAL(active.Height(), orig_tip->nHeight + 10);
     uint256 fork_hash;

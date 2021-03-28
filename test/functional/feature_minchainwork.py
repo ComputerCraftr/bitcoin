@@ -84,7 +84,10 @@ class MinimumChainWorkTest(BitcoinTestFramework):
         ensure_for(duration=5, f=lambda: "headers" not in peer.last_message or len(peer.last_message["headers"].headers) == 0)
 
         self.log.info("Generating one more block")
-        self.generate(self.nodes[0], 1)
+        # Keep the decisive block valid after generate() restores its temporary mining clocks.
+        next_block_time = max(self.nodes[0].getblockheader(hashes[-1])["time"] + 1, int(time.time()))
+        self.nodes[1].setmocktime(next_block_time)
+        self.generate(self.nodes[0], 1, sync_fun=self.no_op)
 
         self.log.info("Verifying nodes are all synced")
 
@@ -94,7 +97,8 @@ class MinimumChainWorkTest(BitcoinTestFramework):
         # insufficient work chain, in which case we'd need to reconnect them to
         # continue the test.
 
-        self.sync_all()
+        self.sync_blocks(self.nodes[:2])
+        self.sync_blocks(self.nodes[1:])
         self.log.info(f"Blockcounts: {[n.getblockcount() for n in self.nodes]}")
 
         self.log.info("Test that getheaders requests to node2 are not ignored")

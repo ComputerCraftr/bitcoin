@@ -29,6 +29,12 @@ class ListSinceBlockTest(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def join_network_at_tip_time(self):
+        tip_time = max(node.getblockheader(node.getbestblockhash())['time'] for node in self.nodes)
+        for node in self.nodes:
+            node.setmocktime(tip_time)
+        self.join_network()
+
     def run_test(self):
         # All nodes are in IBD from genesis, so they'll need the miner (node2) to be an outbound connection, or have
         # only one connection. (See fPreferredDownload in net_processing)
@@ -157,7 +163,7 @@ class ListSinceBlockTest(BitcoinTestFramework):
         self.log.debug("nodes[1] last blockhash = {}".format(nodes1_last_blockhash))
         self.log.debug("nodes[2] first blockhash = {}".format(nodes2_first_blockhash))
 
-        self.join_network()
+        self.join_network_at_tip_time()
 
         # listsinceblock(nodes1_last_blockhash) should now include tx as seen from nodes[0]
         # and return the block height which listsinceblock now exposes since a5e7795.
@@ -175,7 +181,7 @@ class ListSinceBlockTest(BitcoinTestFramework):
         nodes1_last_blockhash = self.generate(self.nodes[1], 6, sync_fun=lambda: self.sync_all(self.nodes[:2]))[-1]
         self.generate(self.nodes[2], 7, sync_fun=lambda: self.sync_all(self.nodes[2:]))[0]
 
-        self.join_network()
+        self.join_network_at_tip_time()
 
         # Renaming the block file to induce unsuccessful block read
         blk_dat = (self.nodes[0].blocks_path / "blk00000.dat")
@@ -263,7 +269,7 @@ class ListSinceBlockTest(BitcoinTestFramework):
         lastblockhash = self.generate(self.nodes[1], 3, sync_fun=self.no_op)[2]
         self.generate(self.nodes[2], 4, sync_fun=self.no_op)
 
-        self.join_network()
+        self.join_network_at_tip_time()
 
         self.sync_all()
 
@@ -343,7 +349,7 @@ class ListSinceBlockTest(BitcoinTestFramework):
         lastblockhash = self.generate(self.nodes[1], 3, sync_fun=self.no_op)[2]
         self.generate(self.nodes[2], 2, sync_fun=self.no_op)
 
-        self.join_network()
+        self.join_network_at_tip_time()
 
         self.sync_all()
 

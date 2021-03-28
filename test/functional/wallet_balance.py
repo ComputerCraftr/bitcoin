@@ -243,10 +243,16 @@ class WalletTest(BitcoinTestFramework):
         self.nodes[0].invalidateblock(block_reorg)
         self.nodes[1].invalidateblock(block_reorg)
         assert_equal(self.nodes[0].getbalance(minconf=0), 0)  # wallet txs not in the mempool are untrusted
+        block_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'] + 1
+        self.nodes[0].setmocktime(block_time)
+        self.nodes[1].setmocktime(block_time)
         self.generatetoaddress(self.nodes[0], 1, ADDRESS_WATCHONLY, sync_fun=self.no_op)
 
         # Now confirm tx_orig
         self.restart_node(1, ['-persistmempool=0'])
+        tip_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time']
+        self.nodes[0].setmocktime(tip_time)
+        self.nodes[1].setmocktime(tip_time)
         self.connect_nodes(0, 1)
         self.sync_blocks()
         self.nodes[1].sendrawtransaction(tx_orig)

@@ -11,6 +11,7 @@ This test takes 30 mins or more (up to 2 hours)
 import os
 
 from test_framework.blocktools import (
+    MAX_FUTURE_BLOCK_TIME as TIMESTAMP_WINDOW,
     MIN_BLOCKS_TO_KEEP,
     create_block,
     create_coinbase,
@@ -28,12 +29,11 @@ from test_framework.util import (
     try_rpc,
 )
 
-# Rescans start at the earliest block up to 2 hours before a key timestamp, so
+# Rescans start at the earliest block up to TIMESTAMP_WINDOW before a key timestamp, so
 # the manual prune RPC avoids pruning blocks in the same window to be
 # compatible with pruning based on key creation time.
-TIMESTAMP_WINDOW = 2 * 60 * 60
 
-def mine_large_blocks(node, n):
+def mine_large_blocks(node, n, mocktime_nodes):
     # Make a large scriptPubKey for the coinbase transaction. This is OP_RETURN
     # followed by 950k of OP_NOP. This would be non-standard in a non-coinbase
     # transaction but is consensus valid.
@@ -51,12 +51,15 @@ def mine_large_blocks(node, n):
     mine_large_blocks.nTime = max(mine_large_blocks.nTime, int(best_block["time"])) + 1
     previousblockhash = int(best_block["hash"], 16)
 
+    for mocktime_node in mocktime_nodes:
+        mocktime_node.setmocktime(mine_large_blocks.nTime + n - 1)
+
     for _ in range(n):
         block = create_block(hashprev=previousblockhash, ntime=mine_large_blocks.nTime, coinbase=create_coinbase(height, script_pubkey=big_script))
         block.solve()
 
         # Submit to the node
-        node.submitblock(block.serialize().hex())
+        assert_equal(node.submitblock(block.serialize().hex()), None)
 
         previousblockhash = block.hash_int
         height += 1
@@ -110,7 +113,7 @@ class PruneTest(BitcoinTestFramework):
         self.generate(self.nodes[0], 150, sync_fun=self.no_op)
 
         # Then mine enough full blocks to create more than 550MiB of data
-        mine_large_blocks(self.nodes[0], 645)
+        mine_large_blocks(self.nodes[0], 645, self.nodes[0:5])
 
         self.sync_blocks(self.nodes[0:5])
 
@@ -143,7 +146,7 @@ class PruneTest(BitcoinTestFramework):
         self.log.info(f"Though we're already using more than 550MiB, current usage: {calc_usage(self.prunedir)}")
         self.log.info("Mining 25 more blocks should cause the first block file to be pruned")
         # Pruning doesn't run until we're allocating another chunk, 20 full blocks past the height cutoff will ensure this
-        mine_large_blocks(self.nodes[0], 25)
+        mine_large_blocks(self.nodes[0], 25, self.nodes[0:3])
 
         # Wait for blk00000.dat to be pruned
         self.wait_until(lambda: not os.path.isfile(os.path.join(self.prunedir, "blk00000.dat")), timeout=30)
@@ -163,10 +166,10 @@ class PruneTest(BitcoinTestFramework):
             self.disconnect_nodes(0, 1)
             self.disconnect_nodes(0, 2)
             # Mine 24 blocks in node 1
-            mine_large_blocks(self.nodes[1], 24)
+            mine_large_blocks(self.nodes[1], 24, self.nodes[0:3])
 
             # Reorg back with 25 block chain from node 0
-            mine_large_blocks(self.nodes[0], 25)
+            mine_large_blocks(self.nodes[0], 25, self.nodes[0:3])
 
             # Create connections in the order so both nodes can see the reorg at the same time
             self.connect_nodes(0, 1)
@@ -205,6 +208,11 @@ class PruneTest(BitcoinTestFramework):
         self.log.info("Generating new longer chain of 300 more blocks")
         self.generate(self.nodes[1], 300, sync_fun=self.no_op)
 
+        # The first post-reconnect tip announcement must be valid on each receiving node.
+        fork_tip_time = self.nodes[1].getblockheader(self.nodes[1].getbestblockhash())["time"]
+        for node in self.nodes[0:3]:
+            node.setmocktime(fork_tip_time)
+
         self.log.info("Reconnect nodes")
         self.connect_nodes(0, 1)
         self.connect_nodes(1, 2)
@@ -215,7 +223,7 @@ class PruneTest(BitcoinTestFramework):
 
         self.log.info("Mine 220 more large blocks so we have requisite history")
 
-        mine_large_blocks(self.nodes[0], 220)
+        mine_large_blocks(self.nodes[0], 220, self.nodes[0:3])
         self.sync_blocks(self.nodes[0:3], timeout=120)
 
         usage = calc_usage(self.prunedir)
@@ -255,7 +263,11 @@ class PruneTest(BitcoinTestFramework):
             self.nodes[0].invalidateblock(curchainhash)
             assert_equal(self.nodes[0].getblockcount(), self.mainchainheight)
             assert_equal(self.nodes[0].getbestblockhash(), self.mainchainhash2)
+            # Announce the completed chain only after node 2 can accept its tip time.
+            self.disconnect_nodes(0, 2)
             goalbesthash = self.generate(self.nodes[0], blocks_to_mine, sync_fun=self.no_op)[-1]
+            self.nodes[2].setmocktime(self.nodes[0].getblockheader(goalbesthash)["time"])
+            self.connect_nodes(0, 2)
             goalbestheight = first_reorg_height + 1
 
         self.log.info("Verify node 2 reorged back to the main chain, some blocks of which it had to redownload")
@@ -349,7 +361,8 @@ class PruneTest(BitcoinTestFramework):
     def test_wallet_rescan(self):
         # check that the pruning node's wallet is still in good shape
         self.log.info("Stop and start pruning node to trigger wallet rescan")
-        self.restart_node(2, extra_args=["-prune=550"])
+        node2_tip_time = self.nodes[2].getblockheader(self.nodes[2].getbestblockhash())["time"]
+        self.restart_node(2, extra_args=["-prune=550", f"-mocktime={node2_tip_time}"])
 
         wallet_info = self.nodes[2].getwalletinfo()
         self.wait_until(lambda: wallet_info["scanning"] == False)
@@ -357,7 +370,11 @@ class PruneTest(BitcoinTestFramework):
 
         # check that wallet loads successfully when restarting a pruned node after IBD.
         # this was reported to fail in #7494.
-        self.restart_node(5, extra_args=["-prune=550", "-blockfilterindex=1"]) # restart to trigger rescan
+        node5_tip_time = self.nodes[5].getblockheader(self.nodes[5].getbestblockhash())["time"]
+        self.restart_node(
+            5,
+            extra_args=["-prune=550", "-blockfilterindex=1", f"-mocktime={node5_tip_time}"],
+        )
 
         wallet_info = self.nodes[5].getwalletinfo()
         self.wait_until(lambda: wallet_info["scanning"] == False)
@@ -470,6 +487,9 @@ class PruneTest(BitcoinTestFramework):
         self.manual_test(4, use_timestamp=True)
 
         self.log.info("Syncing node 5 to node 0")
+        # Align the isolated node before connecting so it accepts the initial tip announcement.
+        node0_tip_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())["time"]
+        self.nodes[5].setmocktime(node0_tip_time)
         self.connect_nodes(0, 5)
         self.sync_blocks([self.nodes[0], self.nodes[5]], wait=5, timeout=300)
 

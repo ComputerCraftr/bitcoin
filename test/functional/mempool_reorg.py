@@ -35,19 +35,29 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
 
     def test_reorg_relay(self):
         self.log.info("Test that transactions from disconnected blocks are available for relay immediately")
-        # Prevent time from moving forward
-        self.nodes[1].setmocktime(int(time.time()))
         self.connect_nodes(0, 1)
         self.generate(self.wallet, 3)
 
         # Disconnect node0 and node1 to create different chains.
         self.disconnect_nodes(0, 1)
+
+        # node0 has a longer chain in which tx_disconnected will not be confirmed.
+        self.generate(self.nodes[0], 3, sync_fun=self.no_op)
+
+        # Prevent time from moving forward while transactions are queued for relay.
+        tip = self.nodes[1].getbestblockhash()
+        self.nodes[1].setmocktime(self.nodes[1].getblockheader(tip)["time"] + 1)
+
         # Connect a peer to node1, which doesn't have immediate tx relay
         peer1 = self.nodes[1].add_p2p_connection(P2PTxInvStore())
 
         # Create a transaction that is included in a block.
         tx_disconnected = self.wallet.send_self_transfer(from_node=self.nodes[1])
-        self.generate(self.nodes[1], 1, sync_fun=self.no_op)
+        self.nodes[1].generatetoaddress(
+            nblocks=1,
+            address=self.nodes[1].get_deterministic_priv_key().address,
+            called_by_framework=True,
+        )
 
         # Create a transaction and submit it to node1's mempool.
         tx_before_reorg = self.wallet.send_self_transfer(from_node=self.nodes[1])
@@ -57,12 +67,9 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         assert_equal(self.nodes[1].getmempoolentry(tx_child["txid"])["ancestorcount"], 1)
         assert_equal(len(peer1.get_invs()), 0)
 
-        # node0 has a longer chain in which tx_disconnected was not confirmed.
-        self.generate(self.nodes[0], 3, sync_fun=self.no_op)
-
         # Reconnect the nodes and sync chains. node0's chain should win.
         self.connect_nodes(0, 1)
-        self.sync_blocks()
+        self.wait_until(lambda: self.nodes[1].getbestblockhash() == self.nodes[0].getbestblockhash())
 
         # Child now has an ancestor from the disconnected block
         assert_equal(self.nodes[1].getmempoolentry(tx_child["txid"])["ancestorcount"], 2)

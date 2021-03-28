@@ -12,8 +12,6 @@ Generate COINBASE_MATURITY (CB) more blocks to ensure the coinbases are mature.
 [Consensus] Check that the new NULLDUMMY rules are not enforced on block CB + 4.
 [Policy/Consensus] Check that the new NULLDUMMY rules are enforced on block CB + 5.
 """
-import time
-
 from test_framework.address import address_to_scriptpubkey
 from test_framework.blocktools import (
     COINBASE_MATURITY,
@@ -83,7 +81,7 @@ class NULLDUMMYTest(BitcoinTestFramework):
         self.generate(self.nodes[0], COINBASE_MATURITY)  # block height = COINBASE_MATURITY + 2
         self.lastblockhash = self.nodes[0].getbestblockhash()
         self.lastblockheight = COINBASE_MATURITY + 2
-        self.lastblocktime = int(time.time()) + self.lastblockheight
+        self.lastblocktime = self.nodes[0].getblockheader(self.lastblockhash)['time']
 
         self.log.info(f"Test 1: NULLDUMMY compliant base transactions should be accepted to mempool and mined before activation [{COINBASE_MATURITY + 3}]")
         test1txs = [self.create_transaction(txid=coinbase_txid[0], addr=self.ms_address, amount=49,

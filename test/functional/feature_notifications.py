@@ -151,6 +151,9 @@ class NotificationsTest(BitcoinTestFramework):
             blockheight2 = self.nodes[0].getblockcount()
             assert_equal(self.nodes[0].gettransaction(bump2)["confirmations"], 1)
             assert_equal(tx2 in self.nodes[1].getrawmempool(), True)
+            tip_time = self.nodes[0].getblockheader(blockhash2)['time']
+            self.nodes[0].setmocktime(tip_time)
+            self.nodes[1].setmocktime(tip_time)
             self.connect_nodes(0, 1)
             self.sync_blocks()
             self.expect_wallet_notify([(bump2, blockheight2, blockhash2), (tx2, -1, UNCONFIRMED_HASH_STRING)])

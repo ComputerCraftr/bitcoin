@@ -125,6 +125,7 @@ class BIP65Test(BitcoinTestFramework):
         block.solve()
 
         self.test_cltv_info(is_active=False)  # Not active as of current tip and next block does not need to obey rules
+        self.nodes[0].setmocktime(block.nTime)
         peer.send_and_ping(msg_block(block))
         self.test_cltv_info(is_active=True)  # Not active as of current tip, but next block must obey rules
         assert_equal(self.nodes[0].getbestblockhash(), block.hash_hex)
@@ -136,6 +137,7 @@ class BIP65Test(BitcoinTestFramework):
         block.solve()
 
         with self.nodes[0].assert_debug_log(expected_msgs=[f'{block.hash_hex}, bad-version(0x00000003)']):
+            self.nodes[0].setmocktime(block.nTime)
             peer.send_and_ping(msg_block(block))
             assert_equal(int(self.nodes[0].getbestblockhash(), 16), tip)
             peer.sync_with_ping()
@@ -183,6 +185,7 @@ class BIP65Test(BitcoinTestFramework):
             block.solve()
 
             with self.nodes[0].assert_debug_log(expected_msgs=[f'Block validation error: {blk_rej + expected_cltv_reject_reason}']):
+                self.nodes[0].setmocktime(block.nTime)
                 peer.send_and_ping(msg_block(block))
                 assert_equal(int(self.nodes[0].getbestblockhash(), 16), tip)
                 peer.sync_with_ping()
@@ -196,6 +199,7 @@ class BIP65Test(BitcoinTestFramework):
         block.solve()
 
         self.test_cltv_info(is_active=True)  # Not active as of current tip, but next block must obey rules
+        self.nodes[0].setmocktime(block.nTime)
         peer.send_and_ping(msg_block(block))
         self.test_cltv_info(is_active=True)  # Active as of current tip
         assert_equal(self.nodes[0].getbestblockhash(), block.hash_hex)

@@ -32,7 +32,11 @@ class AbortNodeTest(BitcoinTestFramework):
         self.generate(self.nodes[1], 3, sync_fun=self.no_op)
         with self.nodes[0].assert_debug_log(["Failed to disconnect block"]):
             self.connect_nodes(0, 1)
-            self.generate(self.nodes[1], 1, sync_fun=self.no_op)
+            self.nodes[1].generatetoaddress(
+                nblocks=1,
+                address=self.nodes[1].get_deterministic_priv_key().address,
+                called_by_framework=True,
+            )
 
             # Check that node0 aborted
             self.log.info("Waiting for crash")

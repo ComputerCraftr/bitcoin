@@ -30,7 +30,12 @@ class CompactBlocksConnectionTest(BitcoinTestFramework):
     def relay_block_through(self, peer):
         """Relay a new block through peer peer, and return HB status between 1 and [2,3,4,5]."""
         self.connect_nodes(peer, 0)
-        self.generate(self.nodes[0], 1)
+
+        def sync_without_reconnect():
+            block_hash = self.nodes[0].getbestblockhash()
+            self.wait_until(lambda: all(node.getbestblockhash() == block_hash for node in self.nodes))
+
+        self.generate(self.nodes[0], 1, sync_fun=sync_without_reconnect)
         self.disconnect_nodes(peer, 0)
 
         def status_to():

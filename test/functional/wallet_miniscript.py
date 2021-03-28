@@ -269,7 +269,7 @@ class WalletMiniscriptTest(BitcoinTestFramework):
         addr = self.ms_sig_wallet.getnewaddress(address_type=addr_type)
         txid = self.funder.sendtoaddress(addr, 0.01)
         self.wait_until(lambda: txid in self.funder.getrawmempool())
-        self.funder.generatetoaddress(1, self.funder.getnewaddress())
+        self.generatetoaddress(self.nodes[0], 1, self.funder.getnewaddress())
         utxo = self.ms_sig_wallet.listunspent(addresses=[addr])[0]
         assert txid == utxo["txid"] and utxo["solvable"]
 
@@ -309,11 +309,12 @@ class WalletMiniscriptTest(BitcoinTestFramework):
             self.log.info("Broadcasting the transaction.")
             # If necessary, satisfy a relative timelock
             if sequence is not None:
-                self.funder.generatetoaddress(sequence, self.funder.getnewaddress())
+                self.generatetoaddress(self.nodes[0], sequence, self.funder.getnewaddress())
             # If necessary, satisfy an absolute timelock
             height = self.funder.getblockcount()
             if locktime is not None and height < locktime:
-                self.funder.generatetoaddress(
+                self.generatetoaddress(
+                    self.nodes[0],
                     locktime - height, self.funder.getnewaddress()
                 )
             self.ms_sig_wallet.sendrawtransaction(res["hex"])

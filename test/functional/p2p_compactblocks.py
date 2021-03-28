@@ -153,6 +153,7 @@ class CompactBlocksTest(BitcoinTestFramework):
     def build_block_on_tip(self, node):
         block = create_block(tmpl=node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS))
         block.solve()
+        node.setmocktime(block.nTime)
         return block
 
     # Create 10 more anyone-can-spend utxo's for testing.

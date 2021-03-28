@@ -11,6 +11,7 @@ See feature_assumeutxo.py for background.
 
 """
 from test_framework.address import address_to_scriptpubkey
+from test_framework.blocktools import MAX_FUTURE_BLOCK_TIME
 from test_framework.descriptors import descsum_create
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.messages import COIN
@@ -93,8 +94,11 @@ class AssumeutxoTest(BitcoinTestFramework):
                 self.mini_wallet.send_self_transfer(from_node=n0)
             self.generate(n0, nblocks=1, sync_fun=self.no_op)
             newblock = n0.getblock(n0.getbestblockhash(), 0)
+            block_time = n0.getblockheader(n0.getbestblockhash())['time']
 
             # make n1 aware of the new header, but don't give it the block.
+            n1.setmocktime(block_time)
+            n2.setmocktime(block_time)
             n1.submitheader(newblock)
             n2.submitheader(newblock)
 
@@ -137,6 +141,9 @@ class AssumeutxoTest(BitcoinTestFramework):
         assert_equal(n2.getblockcount(), START_HEIGHT)
 
         assert_equal(n0.getblockchaininfo()["blocks"], FINAL_HEIGHT)
+        final_block_time = n0.getblockheader(n0.getbestblockhash())['time']
+        n1.setmocktime(final_block_time)
+        n2.setmocktime(final_block_time)
 
         self.log.info(
             f"Loading snapshot into second node from {dump_output['path']}")
@@ -168,7 +175,7 @@ class AssumeutxoTest(BitcoinTestFramework):
         key = get_generate_key()
         time = n1.getblockchaininfo()['time']
         timestamp = 0
-        expected_error_message = f"Rescan failed for descriptor with timestamp {timestamp}. There was an error reading a block from time {time}, which is after or within 7200 seconds of key creation, and could contain transactions pertaining to the desc. As a result, transactions and coins using this desc may not appear in the wallet. This error is likely caused by an in-progress assumeutxo background sync. Check logs or getchainstates RPC for assumeutxo background sync progress and try again later."
+        expected_error_message = f"Rescan failed for descriptor with timestamp {timestamp}. There was an error reading a block from time {time}, which is after or within {MAX_FUTURE_BLOCK_TIME} seconds of key creation, and could contain transactions pertaining to the desc. As a result, transactions and coins using this desc may not appear in the wallet. This error is likely caused by an in-progress assumeutxo background sync. Check logs or getchainstates RPC for assumeutxo background sync progress and try again later."
         result = self.import_descriptor(n1, wallet_name, key, timestamp)
         assert_equal(result[0]['error']['code'], -1)
         assert_equal(result[0]['error']['message'], expected_error_message)

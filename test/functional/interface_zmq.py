@@ -419,7 +419,9 @@ class ZMQTest (BitcoinTestFramework):
         bump_txid = self.nodes[0].sendrawtransaction(orig_tx['tx'].serialize().hex())
         # Mine the pre-bump tx
         txs_to_add = [orig_tx['hex']] + [tx['hex'] for tx in more_tx]
-        block = create_block(int(self.nodes[0].getbestblockhash(), 16), create_coinbase(self.nodes[0].getblockcount()+1), txlist=txs_to_add)
+        best_hash = self.nodes[0].getbestblockhash()
+        block_time = self.nodes[0].getblockheader(best_hash)["mediantime"] + 1
+        block = create_block(int(best_hash, 16), create_coinbase(self.nodes[0].getblockcount()+1), block_time, txlist=txs_to_add)
         add_witness_commitment(block)
         block.solve()
         assert_equal(self.nodes[0].submitblock(block.serialize().hex()), None)

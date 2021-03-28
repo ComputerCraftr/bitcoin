@@ -196,6 +196,8 @@ class CoinStatsIndexTest(BitcoinTestFramework):
         block_time = self.nodes[0].getblock(tip)['time'] + 1
         block = create_block(int(tip, 16), cb, block_time)
         block.solve()
+        self.nodes[0].setmocktime(block_time)
+        self.nodes[1].setmocktime(block_time)
         self.nodes[0].submitblock(block.serialize().hex())
         self.sync_all()
 
@@ -247,8 +249,10 @@ class CoinStatsIndexTest(BitcoinTestFramework):
     def _test_use_index_option(self):
         self.log.info("Test use_index option for nodes running the index")
 
+        self.nodes[0].setmocktime(self.nodes[1].getblockheader(self.nodes[1].getbestblockhash())['time'])
         self.connect_nodes(0, 1)
         self.nodes[0].waitforblockheight(110)
+        self.nodes[0].setmocktime(0)
         res = self.nodes[0].gettxoutsetinfo('muhash')
         option_res = self.nodes[1].gettxoutsetinfo(hash_type='muhash', hash_or_height=None, use_index=False)
         del res['disk_size'], option_res['disk_size']

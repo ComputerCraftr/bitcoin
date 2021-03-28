@@ -21,8 +21,6 @@ from test_framework.blocktools import (
 
 from test_framework.util import assert_equal
 
-import time
-
 NODE1_BLOCKS_REQUIRED = 15
 NODE2_BLOCKS_REQUIRED = 2047
 
@@ -105,6 +103,11 @@ class RejectLowDifficultyHeadersTest(BitcoinTestFramework):
         self.generate(self.nodes[0], NODE2_BLOCKS_REQUIRED-self.nodes[0].getblockcount(), sync_fun=self.no_op)
 
         self.log.info("Verify that node2 and node3 will sync the chain when it gets long enough")
+        self.mocktime_all(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
+        # Rapid mocktime advancement can expire peer download state while mining.
+        # Reset this test's known topology after reaching minimum work.
+        self.disconnect_all()
+        self.reconnect_all()
         self.sync_blocks()
 
     def test_peerinfo_includes_headers_presync_height(self):
@@ -153,11 +156,16 @@ class RejectLowDifficultyHeadersTest(BitcoinTestFramework):
         self.generate(self.nodes[0], BLOCKS_TO_MINE, sync_fun=self.no_op)
         self.generate(self.nodes[1], BLOCKS_TO_MINE+2, sync_fun=self.no_op)
 
+        # Keep both future-dated forks valid while reconnecting and activating the
+        # higher-work chain.
+        self.mocktime_all(max(
+            node.getblockheader(node.getbestblockhash())['time']
+            for node in self.nodes
+        ))
         self.reconnect_all()
 
-        self.mocktime_all(int(time.time()))  # Temporarily hold time to avoid internal timeouts
         self.sync_blocks(timeout=300) # Ensure tips eventually agree
-        self.mocktime_all(0)
+        self.mocktime_all(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
 
 
     def run_test(self):

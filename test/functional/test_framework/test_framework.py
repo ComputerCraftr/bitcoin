@@ -8,6 +8,7 @@ import configparser
 from enum import Enum
 import argparse
 from datetime import datetime, timezone
+import http.client
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ import types
 
 from .address import create_deterministic_address_bcrt1_p2tr_op_true
 from .authproxy import JSONRPCException
+from .blocktools import MAX_FUTURE_BLOCK_TIME
 from . import coverage
 from .p2p import NetworkThread
 from .test_node import TestNode
@@ -748,25 +750,107 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
     def no_op(self):
         pass
 
-    def generate(self, generator, *args, sync_fun=None, **kwargs):
-        blocks = generator.generate(*args, called_by_framework=True, **kwargs)
-        sync_fun() if sync_fun else self.sync_all()
-        return blocks
+    def _get_node(self, generator):
+        if isinstance(generator, TestNode):
+            return generator
+        if hasattr(generator, '_test_node') and isinstance(generator._test_node, TestNode):
+            return generator._test_node
+        if hasattr(generator, 'node') and isinstance(generator.node, TestNode):
+            return generator.node
+        return None
+
+    def _set_mocktime_for_mining(self, generator):
+        node = self._get_node(generator)
+        if node and node.chain == 'regtest':
+            regtest_nodes = [
+                n for n in self.nodes
+                if n.chain == 'regtest' and n.running and n.rpc_connected
+            ]
+            tip_time = max(
+                n.getblockheader(n.getbestblockhash())['time']
+                for n in regtest_nodes
+            )
+            mining_time = max(tip_time, node.mocktime if node.mocktime is not None else int(time.time()))
+            for n in regtest_nodes:
+                current_time = n.mocktime if n.mocktime is not None else int(time.time())
+                if current_time < mining_time:
+                    n.setmocktime(mining_time)
+
+    @staticmethod
+    def _restore_mocktimes(mocktimes):
+        for node, mocktime in mocktimes.items():
+            if node.running and node.rpc_connected and node.process.poll() is None and node.mocktime != mocktime:
+                try:
+                    node.setmocktime(mocktime or 0)
+                except (JSONRPCException, ConnectionError, http.client.CannotSendRequest):
+                    pass
+
+    def _generate_batches(self, generator, generate, num_blocks, *args, sync_fun, **kwargs):
+        node = self._get_node(generator)
+        if type(num_blocks) is not int:
+            return generate(num_blocks, *args, called_by_framework=True, **kwargs)
+        if node and node.chain != 'regtest':
+            blocks = generate(num_blocks, *args, called_by_framework=True, **kwargs)
+            sync_fun() if sync_fun else self.sync_all()
+            return blocks
+
+        mocktimes = {
+            n: n.mocktime
+            for n in self.nodes
+            if n.chain == 'regtest' and n.running and n.rpc_connected
+        }
+        blocks = []
+        try:
+            while num_blocks:
+                count = min(num_blocks, MAX_FUTURE_BLOCK_TIME)
+                self._set_mocktime_for_mining(generator)
+                blocks.extend(generate(count, *args, called_by_framework=True, **kwargs))
+                if node:
+                    try:
+                        node.chain_tip_time = node.getblockheader(node.getbestblockhash())['time']
+                    except (JSONRPCException, ConnectionError, http.client.CannotSendRequest):
+                        pass
+                num_blocks -= count
+            if sync_fun == self.no_op:
+                pass
+            elif sync_fun:
+                sync_fun()
+            else:
+                self.sync_all()
+            return blocks
+        finally:
+            self._restore_mocktimes(mocktimes)
+
+    def generate(self, generator, nblocks, *args, sync_fun=None, **kwargs):
+        return self._generate_batches(generator, generator.generate, nblocks, *args, sync_fun=sync_fun, **kwargs)
 
     def generateblock(self, generator, *args, sync_fun=None, **kwargs):
-        blocks = generator.generateblock(*args, called_by_framework=True, **kwargs)
-        sync_fun() if sync_fun else self.sync_all()
-        return blocks
+        node = self._get_node(generator)
+        if not node or node.chain != 'regtest':
+            blocks = generator.generateblock(*args, called_by_framework=True, **kwargs)
+            sync_fun() if sync_fun else self.sync_all()
+            return blocks
 
-    def generatetoaddress(self, generator, *args, sync_fun=None, **kwargs):
-        blocks = generator.generatetoaddress(*args, called_by_framework=True, **kwargs)
-        sync_fun() if sync_fun else self.sync_all()
-        return blocks
+        mocktimes = {
+            n: n.mocktime
+            for n in self.nodes
+            if n.chain == 'regtest' and n.running and n.rpc_connected
+        }
+        try:
+            self._set_mocktime_for_mining(generator)
+            blocks = generator.generateblock(*args, called_by_framework=True, **kwargs)
+            if kwargs.get('submit', True):
+                node.chain_tip_time = node.getblockheader(node.getbestblockhash())['time']
+            sync_fun() if sync_fun else self.sync_all()
+            return blocks
+        finally:
+            self._restore_mocktimes(mocktimes)
 
-    def generatetodescriptor(self, generator, *args, sync_fun=None, **kwargs):
-        blocks = generator.generatetodescriptor(*args, called_by_framework=True, **kwargs)
-        sync_fun() if sync_fun else self.sync_all()
-        return blocks
+    def generatetoaddress(self, generator, nblocks, address, *args, sync_fun=None, **kwargs):
+        return self._generate_batches(generator, generator.generatetoaddress, nblocks, address, *args, sync_fun=sync_fun, **kwargs)
+
+    def generatetodescriptor(self, generator, num_blocks, descriptor, *args, sync_fun=None, **kwargs):
+        return self._generate_batches(generator, generator.generatetodescriptor, num_blocks, descriptor, *args, sync_fun=sync_fun, **kwargs)
 
     def create_outpoints(self, node, *, outputs):
         """Send funds to a given list of `{address: amount}` targets using the bitcoind
@@ -792,19 +876,35 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         chance it might return before all nodes are stably synced.
         """
         rpc_connections = nodes or self.nodes
-        timeout = int(timeout * self.options.timeout_factor)
-        stop_time = time.time() + timeout
-        while time.time() <= stop_time:
-            best_hash = [x.getbestblockhash() for x in rpc_connections]
-            if best_hash.count(best_hash[0]) == len(rpc_connections):
-                return
-            # Check that each peer has at least one connection
-            assert (all([len(x.getpeerinfo()) for x in rpc_connections]))
-            time.sleep(wait)
-        raise AssertionError("Block sync timed out after {}s:{}".format(
-            timeout,
-            "".join("\n  {!r}".format(b) for b in best_hash),
-        ))
+        test_nodes = [node for node in rpc_connections if isinstance(node, TestNode) and node.chain == 'regtest']
+        mocktimes = {node: node.mocktime for node in test_nodes}
+        try:
+            if test_nodes:
+                tip_time = max(
+                    node.getblockheader(node.getbestblockhash())['time']
+                    for node in test_nodes
+                )
+                for node in test_nodes:
+                    current_time = node.mocktime if node.mocktime is not None else int(time.time())
+                    if current_time < tip_time:
+                        node.setmocktime(tip_time)
+            timeout = int(timeout * self.options.timeout_factor)
+            stop_time = time.time() + timeout
+            while time.time() <= stop_time:
+                best_hash = [x.getbestblockhash() for x in rpc_connections]
+                if best_hash.count(best_hash[0]) == len(rpc_connections):
+                    for node in test_nodes:
+                        node.chain_tip_time = node.getblockheader(best_hash[0])['time']
+                    return
+                # Check that each peer has at least one connection
+                assert (all([len(x.getpeerinfo()) for x in rpc_connections]))
+                time.sleep(wait)
+            raise AssertionError("Block sync timed out after {}s:{}".format(
+                timeout,
+                "".join("\n  {!r}".format(b) for b in best_hash),
+            ))
+        finally:
+            self._restore_mocktimes(mocktimes)
 
     def sync_mempools(self, nodes=None, wait=1, timeout=60, flush_scheduler=True):
         """
@@ -812,22 +912,40 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         pools
         """
         rpc_connections = nodes or self.nodes
-        timeout = int(timeout * self.options.timeout_factor)
-        stop_time = time.time() + timeout
-        while time.time() <= stop_time:
-            pool = [set(r.getrawmempool()) for r in rpc_connections]
-            if pool.count(pool[0]) == len(rpc_connections):
+        test_nodes = [node for node in rpc_connections if isinstance(node, TestNode) and node.chain == 'regtest']
+        mocktimes = {node: node.mocktime for node in test_nodes}
+        try:
+            if test_nodes:
+                tip_time = max(
+                    node.getblockheader(node.getbestblockhash())['time']
+                    for node in test_nodes
+                )
+                for node in test_nodes:
+                    current_time = node.mocktime if node.mocktime is not None else int(time.time())
+                    if current_time < tip_time:
+                        node.setmocktime(tip_time)
+            timeout = int(timeout * self.options.timeout_factor)
+            stop_time = time.time() + timeout
+            while time.time() <= stop_time:
+                pool = [set(r.getrawmempool()) for r in rpc_connections]
+                if pool.count(pool[0]) == len(rpc_connections):
+                    if flush_scheduler:
+                        for r in rpc_connections:
+                            r.syncwithvalidationinterfacequeue()
+                    return
+                # Check that each peer has at least one connection
+                assert (all([len(x.getpeerinfo()) for x in rpc_connections]))
                 if flush_scheduler:
-                    for r in rpc_connections:
-                        r.syncwithvalidationinterfacequeue()
-                return
-            # Check that each peer has at least one connection
-            assert (all([len(x.getpeerinfo()) for x in rpc_connections]))
-            time.sleep(wait)
-        raise AssertionError("Mempool sync timed out after {}s:{}".format(
-            timeout,
-            "".join("\n  {!r}".format(m) for m in pool),
-        ))
+                    for node in test_nodes:
+                        node.setmocktime((node.mocktime or int(time.time())) + 10)
+                        node.mockscheduler(10)
+                time.sleep(wait)
+            raise AssertionError("Mempool sync timed out after {}s:{}".format(
+                timeout,
+                "".join("\n  {!r}".format(m) for m in pool),
+            ))
+        finally:
+            self._restore_mocktimes(mocktimes)
 
     def sync_all(self, nodes=None):
         self.sync_blocks(nodes)

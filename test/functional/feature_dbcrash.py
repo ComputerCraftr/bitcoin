@@ -110,7 +110,8 @@ class ChainstateWriteCrashTest(BitcoinTestFramework):
         Returns true if the block was submitted successfully; false otherwise."""
 
         try:
-            self.nodes[node_index].submitblock(block)
+            result = self.nodes[node_index].submitblock(block)
+            assert_not_equal(result, "time-too-new")
             return True
         except (http.client.CannotSendRequest, http.client.RemoteDisconnected) as e:
             self.log.debug(f"node {node_index} submitblock raised exception: {e}")
@@ -136,15 +137,20 @@ class ChainstateWriteCrashTest(BitcoinTestFramework):
         # Retrieve all the blocks from node3
         blocks = []
         for block_hash in block_hashes:
-            blocks.append([block_hash, self.nodes[3].getblock(block_hash, 0)])
+            blocks.append([
+                block_hash,
+                self.nodes[3].getblock(block_hash, 0),
+                self.nodes[3].getblockheader(block_hash)["time"],
+            ])
 
         # Deliver each block to each other node
         for i in range(3):
             nodei_utxo_hash = None
             self.log.debug(f"Syncing blocks to node {i}")
-            for (block_hash, block) in blocks:
+            for (block_hash, block, block_time) in blocks:
                 # Get the block from node3, and submit to node_i
                 self.log.debug(f"submitting block {block_hash}")
+                self.nodes[i].setmocktime(block_time)
                 if not self.submit_block_catch_error(i, block):
                     # TODO: more carefully check that the crash is due to -dbcrashratio
                     # (change the exit code perhaps, and check that here?)

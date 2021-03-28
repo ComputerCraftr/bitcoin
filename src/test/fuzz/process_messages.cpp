@@ -35,6 +35,7 @@ void ResetChainman(TestingSetup& setup)
     setup.m_make_chainman();
     setup.LoadVerifyActivateChainstate();
     for (int i = 0; i < 2 * COINBASE_MATURITY; i++) {
+        SetMockTime(WITH_LOCK(setup.m_node.chainman->GetMutex(), return setup.m_node.chainman->ActiveTip()->GetMedianTimePast() + 1));
         MineBlock(setup.m_node, {});
     }
     setup.m_node.validation_signals->SyncWithValidationInterfaceQueue();

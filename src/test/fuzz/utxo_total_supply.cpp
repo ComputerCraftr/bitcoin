@@ -46,6 +46,8 @@ FUZZ_TARGET(utxo_total_supply)
     BlockAssembler::Options options;
     options.coinbase_output_script = CScript() << OP_FALSE;
     const auto PrepareNextBlock = [&]() {
+        const auto next_block_time{std::chrono::seconds{WITH_LOCK(chainman.GetMutex(), return chainman.ActiveTip()->GetMedianTimePast() + 1)}};
+        if (GetMockTime() < next_block_time) SetMockTime(next_block_time);
         // Use OP_FALSE to avoid BIP30 check from hitting early
         auto block = PrepareBlock(node, options);
         // Replace OP_FALSE with OP_TRUE

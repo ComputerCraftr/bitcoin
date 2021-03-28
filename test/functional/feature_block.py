@@ -12,6 +12,7 @@ from test_framework.blocktools import (
     create_tx_with_script,
     get_legacy_sigopcount_block,
     MAX_BLOCK_SIGOPS,
+    MAX_FUTURE_BLOCK_TIME,
     REGTEST_N_BITS,
 )
 from test_framework.messages import (
@@ -661,10 +662,11 @@ class FullBlockTest(BitcoinTestFramework):
             b47.nNonce += 1
         self.send_blocks([b47], False, force_send=True, reject_reason='high-hash', reconnect=True)
 
-        self.log.info("Reject a block with a timestamp >2 hours in the future")
+        self.log.info("Reject a block with a timestamp after MAX_FUTURE_BLOCK_TIME")
         self.move_tip(44)
         b48 = self.next_block(48)
-        b48.nTime = int(time.time()) + 60 * 60 * 3
+        node_time = max(int(time.time()), node.getblockheader(node.getbestblockhash())['time'])
+        b48.nTime = node_time + MAX_FUTURE_BLOCK_TIME + 1
         # Header timestamp has changed. Re-solve the block.
         b48.solve()
         self.send_blocks([b48], False, force_send=True, reject_reason='time-too-new')
@@ -720,14 +722,13 @@ class FullBlockTest(BitcoinTestFramework):
         self.send_blocks([b55], True)
         self.save_spendable_output()
 
-        # The block which was previously rejected because of being "too far(3 hours)" must be accepted 2 hours later.
-        # The new block is only 1 hour into future now and we must reorg onto to the new longer chain.
+        # The previously-too-new block must be accepted after the node clock advances.
         # The new bestblock b48p is invalidated manually.
         #  -> b31 (8) -> b33 (9) -> b35 (10) -> b39 (11) -> b42 (12) -> b43 (13) -> b53 (14) -> b55 (15)
         #                                                                                   \-> b54 (15)
         #                                                                        -> b44 (14)\-> b48 () -> b48p ()
         self.log.info("Accept a previously rejected future block at a later time")
-        node.setmocktime(int(time.time()) + 2*60*60)
+        node.setmocktime(b48.nTime)
         self.move_tip(48)
         self.block_heights[b48.hash_int] = self.block_heights[b44.hash_int] + 1 # b48 is a parent of b44
         b48p = self.next_block("48p")

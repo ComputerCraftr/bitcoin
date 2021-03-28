@@ -28,7 +28,9 @@ import platform
 import struct
 import sys
 import threading
+import time
 
+from test_framework.authproxy import JSONRPCException
 from test_framework.messages import (
     CBlockHeader,
     MAX_HEADERS_RESULTS,
@@ -875,30 +877,47 @@ class P2PDataStore(P2PInterface):
                 self.block_store[block.hash_int] = block
                 self.last_block_hash = block.hash_int
 
-        reject_reason = [reject_reason] if reject_reason else []
-        with node.assert_debug_log(expected_msgs=reject_reason):
-            if is_decoy:  # since decoy messages are ignored by the recipient - no need to wait for response
-                force_send = True
-            if force_send:
-                for b in blocks:
-                    self.send_without_ping(msg_block(block=b), is_decoy)
-            else:
-                self.send_without_ping(msg_headers([CBlockHeader(block) for block in blocks]))
-                self.wait_until(
-                    lambda: blocks[-1].hash_int in self.getdata_requests,
-                    timeout=timeout,
-                    check_connected=success,
-                )
+        original_mocktime = node.mocktime
+        try:
+            if node.chain == 'regtest':
+                tip_time = node.getblockheader(node.getbestblockhash())['time']
+                current_time = node.mocktime if node.mocktime is not None else int(time.time())
+                if current_time < tip_time:
+                    node.setmocktime(tip_time)
 
-            if expect_disconnect:
-                self.wait_for_disconnect(timeout=timeout)
-            else:
-                self.sync_with_ping(timeout=timeout)
+            reject_reason = [reject_reason] if reject_reason else []
+            with node.assert_debug_log(expected_msgs=reject_reason):
+                if is_decoy:  # since decoy messages are ignored by the recipient - no need to wait for response
+                    force_send = True
+                if force_send:
+                    for b in blocks:
+                        self.send_without_ping(msg_block(block=b), is_decoy)
+                else:
+                    if node.chain == 'regtest':
+                        node.setmocktime(max(block.nTime for block in blocks))
+                    self.send_without_ping(msg_headers([CBlockHeader(block) for block in blocks]))
+                    self.wait_until(
+                        lambda: blocks[-1].hash_int in self.getdata_requests,
+                        timeout=timeout,
+                        check_connected=success,
+                    )
 
-            if success:
-                self.wait_until(lambda: node.getbestblockhash() == blocks[-1].hash_hex, timeout=timeout)
-            else:
-                assert_not_equal(node.getbestblockhash(), blocks[-1].hash_hex)
+                if expect_disconnect:
+                    self.wait_for_disconnect(timeout=timeout)
+                else:
+                    self.sync_with_ping(timeout=timeout)
+
+                if success:
+                    self.wait_until(lambda: node.getbestblockhash() == blocks[-1].hash_hex, timeout=timeout)
+                    node.chain_tip_time = blocks[-1].nTime
+                else:
+                    assert_not_equal(node.getbestblockhash(), blocks[-1].hash_hex)
+        finally:
+            if node.running and node.rpc_connected and node.process.poll() is None and node.mocktime != original_mocktime:
+                try:
+                    node.setmocktime(original_mocktime or 0)
+                except (JSONRPCException, ConnectionError):
+                    pass
 
     def send_txs_and_test(self, txs, node, *, success=True, reject_reason=None):
         """Send txs to test node and test whether they're accepted to the mempool.

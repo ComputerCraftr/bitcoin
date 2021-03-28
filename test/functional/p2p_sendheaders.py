@@ -309,7 +309,7 @@ class SendHeadersTest(BitcoinTestFramework):
         test_node.check_last_headers_announcement(headers=[tip])
 
         height = self.nodes[0].getblockcount() + 1
-        block_time += 10  # Advance far enough ahead
+        block_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'] + 1
         for i in range(10):
             self.log.debug("Part 2.{}: starting...".format(i))
             # Mine i blocks, and alternate announcing either via
@@ -337,10 +337,12 @@ class SendHeadersTest(BitcoinTestFramework):
                     # Test that duplicate inv's won't result in duplicate
                     # getdata requests, or duplicate headers announcements
                     [inv_node.send_block_inv(x.hash_int) for x in blocks]
+                    self.nodes[0].setmocktime(blocks[-1].nTime)
                     test_node.wait_for_getdata([x.hash_int for x in blocks])
                     inv_node.sync_with_ping()
                 else:
                     # Announce via headers
+                    self.nodes[0].setmocktime(blocks[-1].nTime)
                     test_node.send_header_for_blocks(blocks)
                     test_node.wait_for_getdata([x.hash_int for x in blocks])
                     # Test that duplicate headers won't result in duplicate
@@ -443,6 +445,7 @@ class SendHeadersTest(BitcoinTestFramework):
             tip = blocks[-1].hash_int
             block_time += 1
             height += 1
+            self.nodes[0].setmocktime(blocks[-1].nTime)
             inv_node.send_without_ping(msg_block(blocks[-1]))
 
         inv_node.sync_with_ping()  # Make sure blocks are processed
@@ -462,6 +465,7 @@ class SendHeadersTest(BitcoinTestFramework):
             block_time += 1
             height += 1
 
+        self.nodes[0].setmocktime(blocks[-1].nTime)
         test_node.send_header_for_blocks(blocks)
         test_node.sync_with_ping()
         test_node.wait_for_getdata([x.hash_int for x in blocks], timeout=DIRECT_FETCH_RESPONSE_TIME)
@@ -486,6 +490,7 @@ class SendHeadersTest(BitcoinTestFramework):
         # Announcing one block on fork should not trigger direct fetch
         # (less work than tip)
         test_node.last_message.pop("getdata", None)
+        self.nodes[0].setmocktime(blocks[0].nTime)
         test_node.send_header_for_blocks(blocks[0:1])
         test_node.sync_with_ping()
         with p2p_lock:
@@ -493,18 +498,21 @@ class SendHeadersTest(BitcoinTestFramework):
 
         # Announcing one more block on fork should trigger direct fetch for
         # both blocks (same work as tip)
+        self.nodes[0].setmocktime(blocks[1].nTime)
         test_node.send_header_for_blocks(blocks[1:2])
         test_node.sync_with_ping()
         test_node.wait_for_getdata([x.hash_int for x in blocks[0:2]], timeout=DIRECT_FETCH_RESPONSE_TIME)
 
         # Announcing 16 more headers should trigger direct fetch for 14 more
         # blocks
+        self.nodes[0].setmocktime(blocks[17].nTime)
         test_node.send_header_for_blocks(blocks[2:18])
         test_node.sync_with_ping()
         test_node.wait_for_getdata([x.hash_int for x in blocks[2:16]], timeout=DIRECT_FETCH_RESPONSE_TIME)
 
         # Announcing 1 more header should not trigger any response
         test_node.last_message.pop("getdata", None)
+        self.nodes[0].setmocktime(blocks[18].nTime)
         test_node.send_header_for_blocks(blocks[18:19])
         test_node.sync_with_ping()
         with p2p_lock:
@@ -513,6 +521,7 @@ class SendHeadersTest(BitcoinTestFramework):
         self.log.info("Part 4: success!")
 
         # Now deliver all those blocks we announced.
+        self.nodes[0].setmocktime(blocks[-1].nTime)
         [test_node.send_without_ping(msg_block(x)) for x in blocks]
 
         self.log.info("Part 5: Testing handling of unconnecting headers")
@@ -532,6 +541,7 @@ class SendHeadersTest(BitcoinTestFramework):
                 block_time += 1
                 height += 1
             # Send the header of the second block -> this won't connect.
+            self.nodes[0].setmocktime(blocks[-1].nTime)
             test_node.send_header_for_blocks([blocks[1]])
             test_node.wait_for_getheaders(block_hash=expected_hash)
             test_node.send_header_for_blocks(blocks)
@@ -559,6 +569,7 @@ class SendHeadersTest(BitcoinTestFramework):
             # treated as a response instead of as an announcement.
             test_node.send_header_for_blocks([])
             # Send the actual unconnecting header, which should trigger a new getheaders.
+            self.nodes[0].setmocktime(blocks[i].nTime)
             test_node.send_header_for_blocks([blocks[i]])
             test_node.wait_for_getheaders(block_hash=expected_hash)
 

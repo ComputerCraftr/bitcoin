@@ -314,6 +314,7 @@ class TestBitcoinCli(BitcoinTestFramework):
             blocks = self.nodes[0].getblockcount()
 
             self.log.info('Test -generate with no args')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli('-generate').send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), 1)
@@ -325,18 +326,21 @@ class TestBitcoinCli(BitcoinTestFramework):
             assert_raises_process_error(1, TOO_MANY_ARGS, self.nodes[0].cli('-generate', 1, 2, 3).echo)
 
             self.log.info('Test -generate with nblocks')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli('-generate', n1).send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), n1)
             assert_equal(self.nodes[0].getblockcount(), blocks + 1 + n1)
 
             self.log.info('Test -generate with nblocks and maxtries')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli('-generate', n2, 1000000).send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), n2)
             assert_equal(self.nodes[0].getblockcount(), blocks + 1 + n1 + n2)
 
             self.log.info('Test -generate -rpcwallet in single-wallet mode')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli(rpcwallet2, '-generate').send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), 1)
@@ -359,6 +363,7 @@ class TestBitcoinCli(BitcoinTestFramework):
             assert_raises_rpc_error(-18, WALLET_NOT_LOADED, self.nodes[0].cli(wallet2_path, '-generate').echo)
 
             self.log.info('Test -generate -rpcwallet with no args')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli(rpcwallet2, '-generate').send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), 1)
@@ -370,12 +375,14 @@ class TestBitcoinCli(BitcoinTestFramework):
             assert_raises_process_error(1, TOO_MANY_ARGS, self.nodes[0].cli(rpcwallet2, '-generate', 1, 2, 3).echo)
 
             self.log.info('Test -generate -rpcwallet with nblocks')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli(rpcwallet2, '-generate', n3).send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), n3)
             assert_equal(self.nodes[0].getblockcount(), blocks + 1 + n3)
 
             self.log.info('Test -generate -rpcwallet with nblocks and maxtries')
+            self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
             generate = self.nodes[0].cli(rpcwallet2, '-generate', n4, 1000000).send_cli()
             assert_equal(set(generate.keys()), {'address', 'blocks'})
             assert_equal(len(generate["blocks"]), n4)
@@ -393,6 +400,7 @@ class TestBitcoinCli(BitcoinTestFramework):
         self.test_netinfo()
 
         self.log.info("Test -version with node stopped")
+        self.nodes[0].chain_tip_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time']
         self.stop_node(0)
         cli_response = self.nodes[0].cli('-version').send_cli()
         assert f"{self.config['environment']['CLIENT_NAME']} RPC client version" in cli_response

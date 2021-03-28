@@ -51,6 +51,7 @@ class MutatedBlocksTest(BitcoinTestFramework):
         block = create_block(tmpl=self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS), txlist=[tx])
         add_witness_commitment(block)
         block.solve()
+        self.nodes[0].setmocktime(block.nTime)
 
         # Create mutated version of the block by changing the transaction
         # version on the self-transfer.

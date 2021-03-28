@@ -50,6 +50,7 @@ void initialize_tx_pool()
     options.coinbase_output_script = P2WSH_OP_TRUE;
 
     for (int i = 0; i < 2 * COINBASE_MATURITY; ++i) {
+        SetMockTime(WITH_LOCK(g_setup->m_node.chainman->GetMutex(), return g_setup->m_node.chainman->ActiveTip()->GetMedianTimePast() + 1));
         COutPoint prevout{MineBlock(g_setup->m_node, options)};
         // Remember the txids to avoid expensive disk access later on
         auto& outpoints = i < COINBASE_MATURITY ?

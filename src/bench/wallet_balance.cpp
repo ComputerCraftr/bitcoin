@@ -45,7 +45,9 @@ static void WalletBalance(benchmark::Bench& bench, const bool set_dirty, const b
 
     for (int i = 0; i < 100; ++i) {
         generatetoaddress(test_setup->m_node, address_mine.value_or(ADDRESS_WATCHONLY));
+        SetMockTime(GetTime() + 1);
         generatetoaddress(test_setup->m_node, ADDRESS_WATCHONLY);
+        SetMockTime(GetTime() + 1);
     }
     // Calls SyncWithValidationInterfaceQueue
     wallet.chain().waitForNotificationsIfTipChanged(uint256::ZERO);

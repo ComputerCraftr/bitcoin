@@ -74,7 +74,10 @@ class MempoolPersistTest(BitcoinTestFramework):
             self.nodes[2].syncwithvalidationinterfacequeue()  # Flush mempool to wallet
             node2_balance = wallet_watch.getbalance()
         self.sync_all()
-        tx_creation_time_higher = int(time.time())
+        tx_creation_time_higher = max(
+            int(time.time()),
+            *(node.latest_mocktime or 0 for node in self.nodes),
+        )
 
         self.log.debug("Verify that node0 and node1 have 5 transactions in their mempools")
         assert_equal(len(self.nodes[0].getrawmempool()), 5)

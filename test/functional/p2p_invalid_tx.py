@@ -171,7 +171,8 @@ class InvalidTxRequestTest(BitcoinTestFramework):
 
         tip = int(node.getbestblockhash(), 16)
         height = node.getblockcount() + 1
-        block_A = create_block(tip, create_coinbase(height))
+        block_time = node.getblockheader(node.getbestblockhash())['time'] + 1
+        block_A = create_block(tip, create_coinbase(height), block_time)
         block_A.vtx.extend([tx_withhold, tx_withhold_until_block_A, tx_orphan_include_by_block_A])
         block_A.hashMerkleRoot = block_A.calc_merkle_root()
         block_A.solve()

@@ -5,6 +5,7 @@
 """Test generate* RPCs."""
 
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.wallet import MiniWallet
@@ -87,7 +88,18 @@ class RPCGenerateTest(BitcoinTestFramework):
 
         # Ensure that generateblock can be called concurrently by many threads.
         self.log.info('Generate blocks in parallel')
-        generate_50_blocks = lambda n: [n.generateblock(output=address, transactions=[]) for _ in range(50)]
+        mocktime = node.getblockheader(node.getbestblockhash())["time"]
+        mocktime_lock = Lock()
+
+        def generate_50_blocks(rpc):
+            nonlocal mocktime
+            for _ in range(50):
+                # Keep clock updates monotonic without serializing generateblock.
+                with mocktime_lock:
+                    mocktime += 1
+                    rpc.setmocktime(mocktime)
+                rpc.generateblock(output=address, transactions=[])
+
         rpcs = [node.cli for _ in range(6)]
         with ThreadPoolExecutor(max_workers=len(rpcs)) as threads:
             list(threads.map(generate_50_blocks, rpcs))

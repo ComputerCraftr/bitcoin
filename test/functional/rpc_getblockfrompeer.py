@@ -4,6 +4,8 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test the getblockfrompeer RPC."""
 
+import time
+
 from test_framework.authproxy import JSONRPCException
 from test_framework.messages import (
     CBlock,
@@ -40,6 +42,24 @@ class GetBlockFromPeerTest(BitcoinTestFramework):
             return True
         except JSONRPCException:
             return False
+
+    def generate_and_sync(self, node, blocks, sync_nodes):
+        tip_time = max(
+            test_node.getblockheader(test_node.getbestblockhash())['time']
+            for test_node in self.nodes
+            if test_node.running and test_node.rpc_connected
+        )
+        mining_time = max(tip_time, node.mocktime if node.mocktime is not None else int(time.time()))
+        # Keep recipients ahead while generate() temporarily advances and restores clocks.
+        for sync_node in sync_nodes:
+            if sync_node is not node:
+                sync_node.setmocktime(mining_time + blocks)
+
+        self.generate(node, blocks, sync_fun=self.no_op)
+        tip_time = node.getblockheader(node.getbestblockhash())['time']
+        for sync_node in sync_nodes:
+            sync_node.setmocktime(tip_time)
+        self.sync_blocks(sync_nodes)
 
     def run_test(self):
         self.log.info("Mine 4 blocks on Node 0")
@@ -125,8 +145,7 @@ class GetBlockFromPeerTest(BitcoinTestFramework):
         self.sync_blocks([self.nodes[0], pruned_node])
 
         # We need to generate more blocks to be able to prune
-        self.generate(self.nodes[0], 400, sync_fun=self.no_op)
-        self.sync_blocks([self.nodes[0], pruned_node])
+        self.generate_and_sync(self.nodes[0], 400, [self.nodes[0], pruned_node])
         pruneheight = pruned_node.pruneblockchain(300)
         assert_equal(pruneheight, 248)
         # Ensure the block is actually pruned
@@ -142,15 +161,13 @@ class GetBlockFromPeerTest(BitcoinTestFramework):
         assert_equal(result, {})
 
         self.log.info("Fetched block persists after next pruning event")
-        self.generate(self.nodes[0], 250, sync_fun=self.no_op)
-        self.sync_blocks([self.nodes[0], pruned_node])
+        self.generate_and_sync(self.nodes[0], 250, [self.nodes[0], pruned_node])
         pruneheight += 251
         assert_equal(pruned_node.pruneblockchain(700), pruneheight)
         assert_equal(pruned_node.getblock(pruned_block)["hash"], "196ee3a1a6db2353965081c48ef8e6b031cb2115d084bec6fec937e91a2c6277")
 
         self.log.info("Fetched block can be pruned again when prune height exceeds the height of the tip at the time when the block was fetched")
-        self.generate(self.nodes[0], 250, sync_fun=self.no_op)
-        self.sync_blocks([self.nodes[0], pruned_node])
+        self.generate_and_sync(self.nodes[0], 250, [self.nodes[0], pruned_node])
         pruneheight += 250
         assert_equal(pruned_node.pruneblockchain(1000), pruneheight)
         assert_raises_rpc_error(-1, "Block not available (pruned data)", pruned_node.getblock, pruned_block)

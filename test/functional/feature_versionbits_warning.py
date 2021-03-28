@@ -43,6 +43,7 @@ class VersionBitsWarningTest(BitcoinTestFramework):
         height = self.nodes[0].getblockcount()
         block_time = self.nodes[0].getblockheader(tip)["time"] + 1
         tip = int(tip, 16)
+        self.nodes[0].setmocktime(block_time + numblocks - 1)
 
         for _ in range(numblocks):
             block = create_block(tip, create_coinbase(height + 1), block_time, version=version)

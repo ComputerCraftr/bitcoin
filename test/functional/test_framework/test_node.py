@@ -28,6 +28,7 @@ from .authproxy import (
     JSONRPCException,
     serialization_fallback,
 )
+from .blocktools import MAX_FUTURE_BLOCK_TIME
 from .messages import NODE_P2P_V2
 from .p2p import P2P_SERVICES, P2P_SUBVERSION
 from .util import (
@@ -204,6 +205,9 @@ class TestNode():
         self.timeout_factor = timeout_factor
 
         self.mocktime = None
+        self.latest_mocktime = None
+        self.chain_tip_time = None
+        self._temporary_startup_mocktime = False
 
     AddressKeyPair = collections.namedtuple('AddressKeyPair', ['address', 'key'])
     PRIV_KEYS = [
@@ -259,7 +263,17 @@ class TestNode():
     def start(self, extra_args=None, *, cwd=None, stdout=None, stderr=None, env=None, **kwargs):
         """Start the node."""
         if extra_args is None:
-            extra_args = self.extra_args
+            extra_args = list(self.extra_args)
+        else:
+            extra_args = list(extra_args)
+
+        mocktime_arg = next((arg for arg in extra_args if arg.startswith("-mocktime=")), None)
+        if mocktime_arg is not None:
+            self.mocktime = int(mocktime_arg.split("=", 1)[1])
+        elif self.chain_tip_time is not None and self.chain_tip_time > int(time.time()) + MAX_FUTURE_BLOCK_TIME:
+            extra_args.append(f"-mocktime={self.chain_tip_time}")
+            self.mocktime = self.chain_tip_time
+            self._temporary_startup_mocktime = True
 
         # If listening and no -bind is given, then bitcoind would bind P2P ports on
         # 0.0.0.0:P and 127.0.0.1:P+1 (for incoming Tor connections), where P is
@@ -356,10 +370,12 @@ class TestNode():
                 self.log.debug("RPC successfully started")
                 # Set rpc_connected even if we are in use_cli mode so that we know we can call self.stop() if needed.
                 self.rpc_connected = True
-                if self.use_cli:
-                    return
-                self._rpc = rpc
-                self.url = self._rpc.rpc_url
+                if not self.use_cli:
+                    self._rpc = rpc
+                    self.url = self._rpc.rpc_url
+                if self._temporary_startup_mocktime:
+                    self.setmocktime(0)
+                    self._temporary_startup_mocktime = False
                 return
             except JSONRPCException as e:
                 # Suppress these as they are expected during initialization.
@@ -411,6 +427,44 @@ class TestNode():
         self.log.debug("TestNode.generate() dispatches `generate` call to `generatetoaddress`")
         return self.generatetoaddress(nblocks=nblocks, address=self.get_deterministic_priv_key().address, maxtries=maxtries, **kwargs)
 
+    def _advance_mocktime_for_block_submission(self):
+        if self.chain != 'regtest':
+            return
+        next_time = self.getblockheader(self.getbestblockhash())['time'] + 1
+        current_time = self.mocktime if self.mocktime is not None else int(time.time())
+        if current_time < next_time:
+            self.setmocktime(next_time)
+
+    def submitblock(self, *args, **kwargs):
+        original_mocktime = self.mocktime
+        try:
+            self._advance_mocktime_for_block_submission()
+            result = self.__getattr__('submitblock')(*args, **kwargs)
+            if result is None:
+                self.chain_tip_time = self.getblockheader(self.getbestblockhash())['time']
+            return result
+        finally:
+            if self.mocktime != original_mocktime and self.running and self.process.poll() is None:
+                self.setmocktime(original_mocktime or 0)
+
+    def submitheader(self, *args, **kwargs):
+        original_mocktime = self.mocktime
+        try:
+            self._advance_mocktime_for_block_submission()
+            return self.__getattr__('submitheader')(*args, **kwargs)
+        finally:
+            if self.mocktime != original_mocktime and self.running and self.process.poll() is None:
+                self.setmocktime(original_mocktime or 0)
+
+    def getblocktemplate(self, *args, **kwargs):
+        original_mocktime = self.mocktime
+        try:
+            self._advance_mocktime_for_block_submission()
+            return self.__getattr__('getblocktemplate')(*args, **kwargs)
+        finally:
+            if self.mocktime != original_mocktime and self.running and self.process.poll() is None:
+                self.setmocktime(original_mocktime or 0)
+
     def generateblock(self, *args, called_by_framework, **kwargs):
         assert called_by_framework, "Direct call of this mining RPC is discouraged. Please use one of the self.generate* methods on the test framework, which sync the nodes to avoid intermittent test issues. You may use sync_fun=self.no_op to disable the sync explicitly."
         return self.__getattr__('generateblock')(*args, **kwargs)
@@ -430,6 +484,7 @@ class TestNode():
             self.mocktime = None
         else:
             self.mocktime = timestamp
+            self.latest_mocktime = max(self.latest_mocktime or timestamp, timestamp)
         return self.__getattr__('setmocktime')(timestamp)
 
     def get_wallet_rpc(self, wallet_name):

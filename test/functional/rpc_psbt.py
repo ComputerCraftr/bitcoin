@@ -624,7 +624,8 @@ class PSBTTest(BitcoinTestFramework):
         # partially sign with node 2. This should be complete and sendable
         walletprocesspsbt_out = self.nodes[2].walletprocesspsbt(psbtx)
         assert_equal(walletprocesspsbt_out['complete'], True)
-        self.nodes[2].sendrawtransaction(walletprocesspsbt_out['hex'])
+        multisig_txid = self.nodes[2].sendrawtransaction(walletprocesspsbt_out['hex'])
+        self.wait_until(lambda: multisig_txid in self.nodes[0].getrawmempool())
 
         # check that walletprocesspsbt fails to decode a non-psbt
         rawtx = self.nodes[1].createrawtransaction([{"txid":txid,"vout":p2wpkh_pos}], {self.nodes[1].getnewaddress():9.99})

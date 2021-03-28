@@ -169,6 +169,8 @@ void utxo_snapshot_fuzz(FuzzBufferType buffer)
     if (fuzzed_data_provider.ConsumeBool()) {
         // Consume the bool, but skip the code for the INVALID fuzz target
         if constexpr (!INVALID) {
+            const auto chain_tip_time{std::chrono::seconds{g_chain->back()->GetBlockTime()}};
+            if (GetMockTime() < chain_tip_time) SetMockTime(chain_tip_time);
             for (const auto& block : *g_chain) {
                 BlockValidationState dummy;
                 bool processed{chainman.ProcessNewBlockHeaders({{block->GetBlockHeader()}}, true, dummy)};

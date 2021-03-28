@@ -168,6 +168,7 @@ class AcceptBlockTest(BitcoinTestFramework):
             next_block.solve()
             all_blocks.append(next_block)
             tip = next_block
+        self.nodes[0].setmocktime(all_blocks[-1].nTime)
 
         # Now send the block at height 5 and check that it wasn't accepted (missing header)
         test_node.send_without_ping(msg_block(all_blocks[1]))
@@ -291,6 +292,7 @@ class AcceptBlockTest(BitcoinTestFramework):
         test_node.wait_for_disconnect()
 
         # 9. Connect node1 to node0 and ensure it is able to sync
+        self.nodes[1].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
         self.connect_nodes(0, 1)
         self.sync_blocks([self.nodes[0], self.nodes[1]])
         self.log.info("Successfully synced nodes 1 and 0")

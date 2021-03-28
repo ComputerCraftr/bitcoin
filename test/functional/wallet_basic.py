@@ -341,6 +341,7 @@ class WalletTest(BitcoinTestFramework):
                 self.nodes[2].sendmany, amounts={address: 1}, conf_target=target, estimate_mode=mode)
 
         self.start_node(3, self.nodes[3].extra_args)
+        self.nodes[3].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
         self.connect_nodes(0, 3)
         self.sync_all()
 

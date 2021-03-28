@@ -257,6 +257,9 @@ class AssumeutxoTest(BitcoinTestFramework):
         assert_equal(normal['target'], snapshot['target'])
 
         # Now lets sync the nodes and wait for the background validation to finish
+        tip_time = n0.getblockheader(n0.getbestblockhash())['time']
+        n0.setmocktime(tip_time)
+        n3.setmocktime(tip_time)
         self.connect_nodes(0, 3)
         self.sync_blocks(nodes=(n0, n3))
         self.wait_until(lambda: len(n3.getchainstates()['chainstates']) == 1)
@@ -274,6 +277,7 @@ class AssumeutxoTest(BitcoinTestFramework):
         fork_block1.solve()
         fork_block2 = create_block(fork_block1.hash_int, create_coinbase(SNAPSHOT_BASE_HEIGHT + 1), block_time + 1)
         fork_block2.solve()
+        node1.setmocktime(block_time + 1)
         node1.submitheader(fork_block1.serialize().hex())
         node1.submitheader(fork_block2.serialize().hex())
         msg = "A forked headers-chain with more work than the chain with the snapshot base block header exists. Please proceed to sync without AssumeUtxo."
@@ -431,11 +435,12 @@ class AssumeutxoTest(BitcoinTestFramework):
         # base block while disconnected from n0.
         for i in range(1, 300):
             block = n0.getblock(n0.getblockhash(i), 0)
+            block_time = n0.getblockheader(n0.getblockhash(i))['time']
             # make n1 and n2 aware of the new header, but don't give them the
             # block.
-            n1.submitheader(block)
-            n2.submitheader(block)
-            n3.submitheader(block)
+            for node in (n1, n2, n3):
+                node.setmocktime(block_time)
+                node.submitheader(block)
 
         # Ensure everyone is seeing the same headers.
         for n in self.nodes:
@@ -703,6 +708,7 @@ class AssumeutxoTest(BitcoinTestFramework):
             self.log.info(f"Check that restarting with {reindex_arg} will delete the snapshot chainstate")
             self.restart_node(2, extra_args=[reindex_arg, *self.extra_args[2]])
             assert_equal(1, len(n2.getchainstates()["chainstates"]))
+            n2.setmocktime(n0.getblockheader(n0.getblockhash(SNAPSHOT_BASE_HEIGHT))['time'])
             for i in range(1, 300):
                 block = n0.getblock(n0.getblockhash(i), 0)
                 n2.submitheader(block)

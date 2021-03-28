@@ -50,6 +50,9 @@ class GetChainTipsTest (BitcoinTestFramework):
 
         self.log.info("Join the network halves and check that we now have two tips")
         # (at least at the nodes that previously had the short chain).
+        tip_time = max(node.getblockheader(node.getbestblockhash())['time'] for node in self.nodes)
+        for node in self.nodes:
+            node.setmocktime(tip_time)
         self.join_network()
 
         tips = self.nodes[0].getchaintips()

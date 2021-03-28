@@ -63,6 +63,7 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         tip = int(node.getbestblockhash(), 16)
         height = best_block["height"] + 1
         block_time = best_block["time"] + 1
+        node.setmocktime(block_time)
 
         # Use merkle-root malleability to generate an invalid block with
         # same blockheader (CVE-2012-2459).
@@ -127,7 +128,7 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         peer.send_blocks_and_test([block4], node, success=False,  reject_reason='bad-txns-inputs-duplicate')
 
         self.log.info("Test accepting identical block after rejecting it due to a future timestamp.")
-        t = int(time.time())
+        t = max(int(time.time()), node.getblockheader(node.getbestblockhash())['time'])
         node.setmocktime(t)
         # Set block time +1 second past max future validity
         block = create_block(tip, create_coinbase(height), t + MAX_FUTURE_BLOCK_TIME + 1)
@@ -135,7 +136,7 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         # Need force_send because the block will get rejected without a getdata otherwise
         peer.send_blocks_and_test([block], node, force_send=True, success=False, reject_reason='time-too-new')
         node.setmocktime(t + 1)
-        peer.send_blocks_and_test([block], node, success=True)
+        peer.send_blocks_and_test([block], node, force_send=True, success=True)
 
 
 if __name__ == '__main__':

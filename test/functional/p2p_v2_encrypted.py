@@ -47,7 +47,7 @@ class P2PEncrypted(BitcoinTestFramework):
         return test_blocks
 
     def create_test_block(self, txs):
-        block = create_block(self.tip, create_coinbase(self.tipheight + 1), self.last_block_time + 600, txlist=txs)
+        block = create_block(self.tip, create_coinbase(self.tipheight + 1), self.last_block_time + 1, txlist=txs)
         block.solve()
         return block
 
@@ -88,6 +88,8 @@ class P2PEncrypted(BitcoinTestFramework):
         self.log.info("Testing whether blocks propagate - check if tips sync when number of blocks >= REKEY_INTERVAL")
         # tests whether rekeying (which happens every REKEY_INTERVAL packets) works correctly
         test_blocks = self.generate_blocks(node0, REKEY_INTERVAL+1)
+        for node in self.nodes:
+            node.setmocktime(test_blocks[-1].nTime)
 
         for i in range(2):
             peer6 = node0.add_p2p_connection(P2PDataStore(), supports_v2_p2p=True)

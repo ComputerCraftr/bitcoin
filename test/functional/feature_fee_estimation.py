@@ -397,6 +397,12 @@ class EstimateFeeTest(BitcoinTestFramework):
         fee_dat = self.nodes[0].chain_path / "fee_estimates.dat"
         os.remove(fee_dat)
         self.start_node(0)
+        tip_time = max(
+            node.getblockheader(node.getbestblockhash())["time"]
+            for node in self.nodes
+        )
+        for node in self.nodes:
+            node.setmocktime(tip_time)
         self.connect_nodes(0, 1)
         self.connect_nodes(0, 2)
         self.sync_blocks()

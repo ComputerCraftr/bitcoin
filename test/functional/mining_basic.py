@@ -22,6 +22,7 @@ from test_framework.blocktools import (
     REGTEST_TARGET,
     nbits_str,
     target_str,
+    MAX_FUTURE_BLOCK_TIME,
 )
 from test_framework.messages import (
     BLOCK_HEADER_SIZE,
@@ -51,7 +52,6 @@ from test_framework.wallet import (
 
 
 DIFFICULTY_ADJUSTMENT_INTERVAL = 144
-MAX_FUTURE_BLOCK_TIME = 2 * 3600
 VERSIONBITS_TOP_BITS = 0x20000000
 VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT = 28
 DEFAULT_BLOCK_MIN_TX_FEE = 1 # default `-blockmintxfee` setting [sat/kvB]
@@ -84,6 +84,7 @@ class MiningTest(BitcoinTestFramework):
         self.connect_nodes(0, 1)
         assert_equal(VERSIONBITS_TOP_BITS + (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT), self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
         self.restart_node(0)
+        self.nodes[0].setmocktime(0)
         self.connect_nodes(0, 1)
 
     def test_fees_and_sigops(self):
@@ -151,6 +152,7 @@ class MiningTest(BitcoinTestFramework):
                 blockmintxfee_parameter = f"-blockmintxfee={blockmintxfee_btc_kvb:.8f}"
                 self.log.info(f"-> Test {blockmintxfee_parameter} ({blockmintxfee_sat_kvb} sat/kvB)...")
                 self.restart_node(0, extra_args=[blockmintxfee_parameter, '-minrelaytxfee=0', '-persistmempool=0'])
+            node.setmocktime(node.getblockheader(node.getbestblockhash())['time'])
             assert_equal(node.getmininginfo()['blockmintxfee'], blockmintxfee_btc_kvb)
 
             # submit one tx with exactly the blockmintxfee rate, and one slightly below
@@ -204,7 +206,7 @@ class MiningTest(BitcoinTestFramework):
             self.nodes[0].setmocktime(t)
             self.generate(self.wallet, 1, sync_fun=self.no_op)
 
-        self.log.info("Create block two hours in the future")
+        self.log.info("Create block MAX_FUTURE_BLOCK_TIME in the future")
         self.nodes[0].setmocktime(t + MAX_FUTURE_BLOCK_TIME)
         self.generate(self.wallet, 1, sync_fun=self.no_op)
         assert_equal(node.getblock(node.getbestblockhash())['time'], t + MAX_FUTURE_BLOCK_TIME)
@@ -276,6 +278,7 @@ class MiningTest(BitcoinTestFramework):
         """
         Create a block template and check that it satisfies the expected transaction count and total weight.
         """
+        self.nodes[0].setmocktime(self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time'])
         response = self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
         self.log.info(f"Testing block template: contains {expected_tx_count} transactions, and total weight <= {expected_weight}")
         assert_equal(len(response["transactions"]), expected_tx_count)

@@ -115,6 +115,9 @@ class TxConflicts(BitcoinTestFramework):
         self.generate(self.nodes[2], 15, sync_fun=self.no_op)
 
         # Connect node0 and node2 and wait reorg
+        tip_time = self.nodes[2].getblockheader(self.nodes[2].getbestblockhash())["time"]
+        for node in self.nodes:
+            node.setmocktime(tip_time)
         self.connect_nodes(0, 2)
         self.sync_blocks()
         conflicted = self.nodes[0].gettransaction(txid_AB_parent)

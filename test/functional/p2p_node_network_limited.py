@@ -8,6 +8,8 @@ Tests that a node configured with -prune=550 signals NODE_NETWORK_LIMITED correc
 and that it responds to getdata requests for blocks correctly:
     - send a block within 288 + 2 of the tip
     - disconnect peers who request blocks older than that."""
+import time
+
 from test_framework.messages import (
     CInv,
     MSG_BLOCK,
@@ -57,6 +59,25 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
         self.add_nodes(self.num_nodes, self.extra_args)
         self.start_nodes()
 
+    def generate_and_sync(self, node, blocks, sync_nodes):
+        tip_time = max(
+            test_node.getblockheader(test_node.getbestblockhash())['time']
+            for test_node in self.nodes
+            if test_node.running and test_node.rpc_connected
+        )
+        mining_time = max(tip_time, node.mocktime if node.mocktime is not None else int(time.time()))
+        # Keep recipients ahead while generate() temporarily advances and restores clocks.
+        for sync_node in sync_nodes:
+            if sync_node is not node:
+                sync_node.setmocktime(mining_time + blocks)
+
+        generated_blocks = self.generate(node, blocks, sync_fun=self.no_op)
+        tip_time = node.getblockheader(node.getbestblockhash())['time']
+        for sync_node in sync_nodes:
+            sync_node.setmocktime(tip_time)
+        self.sync_blocks(sync_nodes)
+        return generated_blocks
+
     def test_avoid_requesting_historical_blocks(self):
         self.log.info("Test full node does not request blocks beyond the limited peer threshold")
         pruned_node = self.nodes[0]
@@ -79,14 +100,15 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
         # Mine blocks and sync the pruned node. Surpass the NETWORK_NODE_LIMITED threshold.
         # Blocks deeper than the threshold are considered "historical blocks"
         num_historial_blocks = 12
-        self.generate(miner, NODE_NETWORK_LIMITED_MIN_BLOCKS + num_historial_blocks, sync_fun=self.no_op)
-        self.sync_blocks([miner, pruned_node])
+        self.generate_and_sync(miner, NODE_NETWORK_LIMITED_MIN_BLOCKS + num_historial_blocks, [miner, pruned_node])
 
         # Connect full_node to prune_node and check peers don't disconnect right away.
         # (they will disconnect if full_node, which is chain-wise behind, request blocks
         # older than NODE_NETWORK_LIMITED_MIN_BLOCKS)
         start_height_full_node = full_node.getblockcount()
         full_node.setnetworkactive(True)
+        original_mocktime = full_node.mocktime
+        full_node.setmocktime(pruned_node.getblockheader(pruned_node.getbestblockhash())['time'])
         self.connect_nodes(2, 0)
         assert_equal(len(full_node.getpeerinfo()), 1)
 
@@ -112,6 +134,7 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
         # Lastly, ensure the full_node is not sync and verify it can get synced by
         # establishing a connection with another full node capable of providing them.
         assert_equal(full_node.getblockcount(), start_height_full_node)
+        full_node.setmocktime(original_mocktime or 0)
         self.connect_nodes(2, 1)
         self.sync_blocks([miner, full_node])
 
@@ -130,7 +153,7 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
 
         self.log.info("Mine enough blocks to reach the NODE_NETWORK_LIMITED range.")
         self.connect_nodes(0, 1)
-        blocks = self.generate(self.nodes[1], 292, sync_fun=lambda: self.sync_blocks([self.nodes[0], self.nodes[1]]))
+        blocks = self.generate_and_sync(self.nodes[1], 292, [self.nodes[0], self.nodes[1]])
 
         self.log.info("Make sure we can max retrieve block at tip-288.")
         node.send_getdata_for_block(blocks[1])  # last block in valid range
@@ -143,6 +166,9 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
 
         # connect unsynced node 2 with pruned NODE_NETWORK_LIMITED peer
         # because node 2 is in IBD and node 0 is a NODE_NETWORK_LIMITED peer, sync must not be possible
+        tip_time = self.nodes[0].getblockheader(self.nodes[0].getbestblockhash())['time']
+        for test_node in self.nodes:
+            test_node.setmocktime(tip_time)
         self.connect_nodes(0, 2)
         try:
             self.sync_blocks([self.nodes[0], self.nodes[2]], timeout=5)
