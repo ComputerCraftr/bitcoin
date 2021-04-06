@@ -96,6 +96,7 @@ BitcoinGUI::BitcoinGUI(interfaces::Node& node, const PlatformStyle *_platformSty
 
     rpcConsole = new RPCConsole(node, _platformStyle, nullptr);
     helpMessageDialog = new HelpMessageDialog(this, false);
+    updateWalletDialog = new UpdateWalletDialog(this);
 #ifdef ENABLE_WALLET
     if(enableWallet)
     {
@@ -214,6 +215,8 @@ BitcoinGUI::BitcoinGUI(interfaces::Node& node, const PlatformStyle *_platformSty
 #ifdef Q_OS_MAC
     m_app_nap_inhibitor = new CAppNapInhibitor;
 #endif
+
+    updateWalletDialog->checkForUpdate();
 
     GUIUtil::handleCloseWindowShortcut(this);
 }
