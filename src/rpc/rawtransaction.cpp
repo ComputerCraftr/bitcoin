@@ -591,18 +591,23 @@ static RPCHelpMan decodescript()
     UniValue type;
     type = find_value(r, "type");
 
-    if (type.isStr() && type.get_str() != "scripthash") {
+    std::string typeStr = "scripthash";
+    if (type.isStr()) {
+        typeStr = type.get_str();
+    }
+
+    if (typeStr != "scripthash") {
         // P2SH cannot be wrapped in a P2SH. If this script is already a P2SH,
         // don't return the address for a P2SH of the P2SH.
         r.pushKV("p2sh", EncodeDestination(ScriptHash(script)));
         // P2SH and witness programs cannot be wrapped in P2WSH, if this script
         // is a witness program, don't return addresses for a segwit programs.
-        if (type.get_str() == "pubkey" || type.get_str() == "pubkeyhash" || type.get_str() == "multisig" || type.get_str() == "nonstandard") {
+        if (typeStr == "pubkey" || typeStr == "pubkeyhash" || typeStr == "multisig" || typeStr == "nonstandard") {
             std::vector<std::vector<unsigned char>> solutions_data;
             TxoutType which_type = Solver(script, solutions_data);
             // Uncompressed pubkeys cannot be used with segwit checksigs.
             // If the script contains an uncompressed pubkey, skip encoding of a segwit program.
-            if ((which_type == TxoutType::PUBKEY) || (which_type == TxoutType::MULTISIG)) {
+            if (which_type == TxoutType::PUBKEY || which_type == TxoutType::MULTISIG) {
                 for (const auto& solution : solutions_data) {
                     if ((solution.size() != 1) && !CPubKey(solution).IsCompressed()) {
                         return r;
