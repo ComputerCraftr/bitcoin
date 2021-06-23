@@ -8,9 +8,12 @@ add_library(bitcoin_crypto STATIC EXCLUDE_FROM_ALL
   chacha20poly1305.cpp
   hex_base.cpp
   hkdf_sha256_32.cpp
+  hmac_ripemd160.cpp
+  hmac_sha1.cpp
   hmac_sha256.cpp
   hmac_sha512.cpp
   muhash.cpp
+  pbkdf2_hmac.cpp
   poly1305.cpp
   ripemd160.cpp
   sha1.cpp
