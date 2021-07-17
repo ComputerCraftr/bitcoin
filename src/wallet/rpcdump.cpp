@@ -901,7 +901,10 @@ static std::string RecurseImportData(const CScript& script, ImportData& import_d
         import_data.import_scripts.emplace(*subscript);
         return RecurseImportData(*subscript, import_data, ScriptContext::P2SH);
     }
-    case TxoutType::MULTISIG: {
+    case TxoutType::MULTISIG:
+    case TxoutType::MULTISIG_REPLAY:
+    case TxoutType::MULTISIG_DATA:
+    case TxoutType::MULTISIG_DATA_REPLAY: {
         for (size_t i = 1; i + 1< solverdata.size(); ++i) {
             CPubKey pubkey(solverdata[i].begin(), solverdata[i].end());
             import_data.used_keys.emplace(pubkey.GetID(), false);
