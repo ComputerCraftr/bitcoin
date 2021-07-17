@@ -132,6 +132,7 @@ enum class TxoutType {
     // 'standard' transaction types:
     PUBKEY,
     PUBKEYHASH,
+    PUBKEYHASH_REPLAY,
     SCRIPTHASH,
     MULTISIG,
     NULL_DATA, //!< unspendable OP_RETURN script that carries data
