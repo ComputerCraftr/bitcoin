@@ -4660,7 +4660,7 @@ bool CWallet::GetBlockSigningPubKey(const CBlock& block, CPubKey& pubkey, bool& 
     }
     TxoutType whichType = Solver(scriptPubKey, vSolutions);
 
-    if (whichType == TxoutType::PUBKEY /*|| whichType == TxoutType::PUBKEY_REPLAY || whichType == TxoutType::PUBKEY_DATA_REPLAY*/) {
+    if (whichType == TxoutType::PUBKEY || whichType == TxoutType::PUBKEY_REPLAY || whichType == TxoutType::PUBKEY_DATA_REPLAY) {
         pubkey = CPubKey(vSolutions[0]);
     } else if (whichType == TxoutType::PUBKEYHASH || whichType == TxoutType::PUBKEYHASH_REPLAY || whichType == TxoutType::WITNESS_V0_KEYHASH) {
         std::unique_ptr<SigningProvider> provider = GetSolvingProvider(scriptPubKey);
@@ -4697,7 +4697,7 @@ bool CWallet::GetBlockSigningPubKey(const CBlock& block, CPubKey& pubkey, bool& 
         if (outputType == TxoutType::PUBKEY) { // pubkey is revealed in p2pk output
             pubkey = CPubKey(vSolutions[0]); // use pubkey from output rather than input
             pubkeyInSig = true;
-        } else if (whichType == TxoutType::PUBKEY /*|| whichType == TxoutType::PUBKEY_REPLAY || whichType == TxoutType::PUBKEY_DATA_REPLAY*/ || whichType == TxoutType::MULTISIG || whichType == TxoutType::MULTISIG_REPLAY || whichType == TxoutType::MULTISIG_DATA || whichType == TxoutType::MULTISIG_DATA_REPLAY) { // p2pk and multisig PoS inputs don't place the pubkey in the scriptSig
+        } else if (whichType == TxoutType::PUBKEY || whichType == TxoutType::PUBKEY_REPLAY || whichType == TxoutType::PUBKEY_DATA_REPLAY || whichType == TxoutType::MULTISIG || whichType == TxoutType::MULTISIG_REPLAY || whichType == TxoutType::MULTISIG_DATA || whichType == TxoutType::MULTISIG_DATA_REPLAY) { // p2pk and multisig PoS inputs don't place the pubkey in the scriptSig
             pubkeyInSig = false;
             if (outputType == TxoutType::PUBKEYHASH || outputType == TxoutType::WITNESS_V0_KEYHASH) {
                 std::unique_ptr<SigningProvider> provider = GetSolvingProvider(txout.scriptPubKey);
