@@ -602,7 +602,7 @@ static RPCHelpMan decodescript()
         r.pushKV("p2sh", EncodeDestination(ScriptHash(script)));
         // P2SH and witness programs cannot be wrapped in P2WSH, if this script
         // is a witness program, don't return addresses for a segwit programs.
-        if (typeStr == "pubkey" || typeStr == "pubkeyhash" || typeStr == "multisig" || typeStr == "nonstandard") {
+        if (typeStr == "pubkey" || typeStr == "pubkeyhash" || typeStr == "pubkeyhash_replay" || typeStr == "multisig" || typeStr == "nonstandard") {
             std::vector<std::vector<unsigned char>> solutions_data;
             TxoutType which_type = Solver(script, solutions_data);
             // Uncompressed pubkeys cannot be used with segwit checksigs.
@@ -618,7 +618,7 @@ static RPCHelpMan decodescript()
             CScript segwitScr;
             if (which_type == TxoutType::PUBKEY) {
                 segwitScr = GetScriptForDestination(WitnessV0KeyHash(Hash160(solutions_data[0])));
-            } else if (which_type == TxoutType::PUBKEYHASH) {
+            } else if (which_type == TxoutType::PUBKEYHASH || which_type == TxoutType::PUBKEYHASH_REPLAY) {
                 segwitScr = GetScriptForDestination(WitnessV0KeyHash(uint160{solutions_data[0]}));
             } else {
                 // Scripts that are not fit for P2WPKH are encoded as P2WSH.
