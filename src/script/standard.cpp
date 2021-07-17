@@ -52,6 +52,7 @@ std::string GetTxnOutputType(TxoutType t)
     case TxoutType::PUBKEYHASH: return "pubkeyhash";
     case TxoutType::PUBKEYHASH_REPLAY: return "pubkeyhash_replay";
     case TxoutType::SCRIPTHASH: return "scripthash";
+    case TxoutType::SCRIPTHASH_REPLAY: return "scripthash_replay";
     case TxoutType::MULTISIG: return "multisig";
     case TxoutType::NULL_DATA: return "nulldata";
     case TxoutType::WITNESS_V0_KEYHASH: return "witness_v0_keyhash";
@@ -140,6 +141,27 @@ static bool IsMinimallyEncoded(const valtype& vch)
         return false;
 }
 
+static bool MatchPayToScriptHashReplay(const CScript& script, std::vector<valtype>& txData)
+{
+    const unsigned int scriptSize = script.size();
+    if (scriptSize < 27 || scriptSize > 63 || script[0] != OP_HASH160 || script[1] != 20 || script[22] != OP_EQUAL ||
+        script[scriptSize - 2] != OP_CHECKBLOCKATHEIGHTVERIFY || script.back() != OP_2DROP) return false;
+
+    opcodetype opcode;
+    valtype data;
+    CScript::const_iterator it = script.begin() + 23;
+
+    if (!script.GetOp(it, opcode, data) || data.size() > 32 /* uint256 size */) return false;
+    // Optionally ensure leading zeroes are trimmed from the block hash
+    if (!IsSmallInteger(opcode) && (!IsMinimalPush(data, opcode) /*|| data.size() == 0 || (data.back() & 0xff) == 0*/)) return false;
+    txData.push_back(data);
+    if (!script.GetOp(it, opcode, data) || data.size() > 4 /* int32_t size */) return false;
+    if (!IsSmallInteger(opcode) && (!IsMinimalPush(data, opcode) || !IsMinimallyEncoded(data))) return false;
+    txData.push_back(data);
+
+    return true;
+}
+
 static bool MatchPayToPubkeyHashReplay(const CScript& script, std::vector<valtype>& txData)
 {
     const unsigned int scriptSize = script.size();
@@ -190,7 +212,13 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
     {
         std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
         vSolutionsRet.push_back(hashBytes);
-        return TxoutType::SCRIPTHASH;
+        std::vector<std::vector<unsigned char>> txData;
+        if (MatchPayToScriptHashReplay(scriptPubKey, txData)) {
+            vSolutionsRet.insert(vSolutionsRet.end(), txData.begin(), txData.end());
+            return TxoutType::SCRIPTHASH_REPLAY;
+        } else {
+            return TxoutType::SCRIPTHASH;
+        }
     }
 
     int witnessversion;
@@ -274,7 +302,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = PKHash(uint160(vSolutions[0]));
         return true;
     }
-    else if (whichType == TxoutType::SCRIPTHASH)
+    else if (whichType == TxoutType::SCRIPTHASH || whichType == TxoutType::SCRIPTHASH_REPLAY)
     {
         addressRet = ScriptHash(uint160(vSolutions[0]));
         return true;
