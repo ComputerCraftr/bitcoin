@@ -47,6 +47,41 @@ public:
         SIZE >= COMPRESSED_SIZE,
         "COMPRESSED_SIZE is larger than SIZE");
 
+    enum SigType {
+        SIG_COMPACT = 0,
+        SIG_DER = 1,
+        SIG_COUNT
+    };
+
+    enum SigFlag {
+        VERSION_SIG_COMPACT = 1<<3, // must be greater than zero to avoid being interpreted as an uncompressed public key
+        VERSION_SIG_DER = 6<<3,
+        VERSION_SIG_MASK = 31<<3
+    };
+
+    static int GetSigType(unsigned char flag)
+    {
+        switch (flag & VERSION_SIG_MASK) {
+        case VERSION_SIG_COMPACT:
+            return SIG_COMPACT;
+        case VERSION_SIG_DER:
+            return SIG_DER;
+        default:
+            return -1;
+        }
+    }
+
+    static unsigned char GetSigFlag(int type)
+    {
+        switch (type) {
+        case SIG_COMPACT:
+            return VERSION_SIG_COMPACT;
+        case SIG_DER:
+        default:
+            return VERSION_SIG_DER;
+        }
+    }
+
 private:
 
     /**
