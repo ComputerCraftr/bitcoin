@@ -476,6 +476,10 @@ crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/sha512.h \
   crypto/siphash.cpp \
   crypto/siphash.h \
+## --- scrypt hash --- ##
+  crypto/scrypt.cpp \
+  crypto/scrypt-sse2.cpp \
+  crypto/scrypt.h \
 ## --- xevan hash --- ##
   crypto/blake.c \
   crypto/sph_blake.h \
