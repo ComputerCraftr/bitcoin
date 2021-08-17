@@ -4,6 +4,7 @@
 
 #include <qt/bitcoingui.h>
 
+#include <qt/applocker.h>
 #include <qt/bitcoinunits.h>
 #include <qt/clientmodel.h>
 #include <qt/createwalletdialog.h>
@@ -97,6 +98,7 @@ BitcoinGUI::BitcoinGUI(interfaces::Node& node, const PlatformStyle *_platformSty
     rpcConsole = new RPCConsole(node, _platformStyle, nullptr);
     helpMessageDialog = new HelpMessageDialog(this, false);
     updateWalletDialog = new UpdateWalletDialog(this);
+    appLocker = new AppLocker(nullptr);
 #ifdef ENABLE_WALLET
     if(enableWallet)
     {
@@ -206,6 +208,9 @@ BitcoinGUI::BitcoinGUI(interfaces::Node& node, const PlatformStyle *_platformSty
 
     connect(labelBlocksIcon, &GUIUtil::ClickableLabel::clicked, this, &BitcoinGUI::showModalOverlay);
     connect(progressBar, &GUIUtil::ClickableProgressBar::clicked, this, &BitcoinGUI::showModalOverlay);
+
+    connect(appLocker, &AppLocker::quitAppFromWalletLocker, quitAction, &QAction::trigger);
+    connect(appLocker, &AppLocker::lockingApp, this, &BitcoinGUI::setPrivacy);
 #ifdef ENABLE_WALLET
     if(enableWallet) {
         connect(walletFrame, &WalletFrame::requestedSyncWarningInfo, this, &BitcoinGUI::showModalOverlay);
@@ -237,6 +242,7 @@ BitcoinGUI::~BitcoinGUI()
 #endif
 
     delete rpcConsole;
+    delete appLocker;
 }
 
 void BitcoinGUI::createActions()
@@ -321,6 +327,8 @@ void BitcoinGUI::createActions()
     unlockWalletAction = new QAction(tr("&Unlock Wallet..."), this);
     unlockWalletAction->setToolTip(tr("Unlock wallet"));
     lockWalletAction = new QAction(tr("Lock Wallet"), this);
+    appLockerAction = new QAction(tr("Lock application"), this);
+    appLockerAction->setStatusTip(tr("Lock access to the wallet application"));
     backupWalletAction = new QAction(tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
     changePassphraseAction = new QAction(tr("&Change Passphrase..."), this);
@@ -379,6 +387,8 @@ void BitcoinGUI::createActions()
     QSettings settings;
     m_hide_orphans_action->setChecked(settings.value("fHideOrphans", true).toBool());
 
+    connect(appLockerAction, &QAction::triggered, appLocker, &AppLocker::showLocker);
+
     connect(quitAction, &QAction::triggered, qApp, QApplication::quit);
     connect(aboutAction, &QAction::triggered, this, &BitcoinGUI::aboutClicked);
     connect(aboutQtAction, &QAction::triggered, qApp, QApplication::aboutQt);
@@ -386,8 +396,9 @@ void BitcoinGUI::createActions()
     connect(toggleHideAction, &QAction::triggered, this, &BitcoinGUI::toggleHidden);
     connect(showHelpMessageAction, &QAction::triggered, this, &BitcoinGUI::showHelpMessageClicked);
     connect(openRPCConsoleAction, &QAction::triggered, this, &BitcoinGUI::showDebugWindow);
-    // prevents an open debug window from becoming stuck/unusable on client shutdown
+    // prevents an open debug or appLocker window from becoming stuck/unusable on client shutdown
     connect(quitAction, &QAction::triggered, rpcConsole, &QWidget::hide);
+    connect(quitAction, &QAction::triggered, appLocker, &QWidget::close);
 
 #ifdef ENABLE_WALLET
     if(walletFrame)
@@ -530,6 +541,9 @@ void BitcoinGUI::createMenuBar()
         zoom_action->setEnabled(window != nullptr);
     });
 #endif
+
+    window_menu->addSeparator();
+    window_menu->addAction(appLockerAction);
 
     if (walletFrame) {
 #ifdef Q_OS_MAC
@@ -857,8 +871,10 @@ void BitcoinGUI::aboutClicked()
 
 void BitcoinGUI::showDebugWindow()
 {
-    GUIUtil::bringToFront(rpcConsole);
-    Q_EMIT consoleShown(rpcConsole);
+    if (!appLocker->isWalletLocked()) {
+        GUIUtil::bringToFront(rpcConsole);
+        Q_EMIT consoleShown(rpcConsole);
+    }
 }
 
 void BitcoinGUI::showDebugWindowActivateConsole()
@@ -896,25 +912,34 @@ void BitcoinGUI::gotoHistoryPage()
 
 void BitcoinGUI::gotoReceiveCoinsPage()
 {
-    receiveCoinsAction->setChecked(true);
-    if (walletFrame) walletFrame->gotoReceiveCoinsPage();
+    if (!appLocker->isWalletLocked()) {
+        receiveCoinsAction->setChecked(true);
+        if (walletFrame) walletFrame->gotoReceiveCoinsPage();
+    }
 }
 
 void BitcoinGUI::gotoSendCoinsPage(QString addr)
 {
-    sendCoinsAction->setChecked(true);
-    if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+    if (!appLocker->isWalletLocked()) {
+        sendCoinsAction->setChecked(true);
+        if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+    }
 }
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
 {
-    if (walletFrame) walletFrame->gotoSignMessageTab(addr);
+    if (!appLocker->isWalletLocked()) {
+        if (walletFrame) walletFrame->gotoSignMessageTab(addr);
+    }
 }
 
 void BitcoinGUI::gotoVerifyMessageTab(QString addr)
 {
-    if (walletFrame) walletFrame->gotoVerifyMessageTab(addr);
+    if (!appLocker->isWalletLocked()) {
+        if (walletFrame) walletFrame->gotoVerifyMessageTab(addr);
+    }
 }
+
 void BitcoinGUI::gotoLoadPSBT(bool from_clipboard)
 {
     if (walletFrame) walletFrame->gotoLoadPSBT(from_clipboard);
@@ -971,13 +996,15 @@ void BitcoinGUI::updateHeadersSyncProgressLabel()
 
 void BitcoinGUI::openOptionsDialogWithTab(OptionsDialog::Tab tab)
 {
-    if (!clientModel || !clientModel->getOptionsModel())
-        return;
+    if (!appLocker->isWalletLocked()) {
+        if (!clientModel || !clientModel->getOptionsModel())
+            return;
 
-    OptionsDialog dlg(this, enableWallet);
-    dlg.setCurrentTab(tab);
-    dlg.setModel(clientModel->getOptionsModel());
-    dlg.exec();
+        OptionsDialog dlg(this, enableWallet);
+        dlg.setCurrentTab(tab);
+        dlg.setModel(clientModel->getOptionsModel());
+        dlg.exec();
+    }
 }
 
 void BitcoinGUI::setNumBlocks(int count, const QDateTime& blockDate, const QString& blockHash, double nVerificationProgress, bool header, SynchronizationState sync_state)
@@ -1395,6 +1422,12 @@ void BitcoinGUI::detectShutdown()
     {
         if(rpcConsole)
             rpcConsole->hide();
+        if (appLocker) {
+            if (appLocker->isWalletLocked()) {
+                appLocker->forceShutdown();
+            }
+            appLocker->close();
+        }
         qApp->quit();
     }
 }
