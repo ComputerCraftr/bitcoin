@@ -10,6 +10,7 @@
 #include <attributes.h>
 #include <crypto/common.h>
 #include <crypto/ripemd160.h>
+#include <crypto/scrypt.h>
 #include <crypto/sha1.h>
 #include <crypto/sha256.h>
 //#include <crypto/sha512.h>
@@ -573,6 +574,28 @@ inline uint256 HashNist5(const T1& in1)
 
     uint256 result;
     memcpy(result.data(), hashA, 32);
+    return result;
+}
+
+/* ----------- Scrypt Hash ------------------------------------------------- */
+template<typename T1>
+inline uint256 HashScrypt(const T1& in1)
+{
+    const Span<const unsigned char> &input = MakeUCharSpan(in1);
+
+    uint256 result;
+    scrypt_N_1_1_256(input.data(), input.size(), static_cast<void*>(&result), 1024);
+    return result;
+}
+
+/* ----------- Scrypt² Hash ------------------------------------------------- */
+template<typename T1>
+inline uint256 HashScryptSquared(const T1& in1)
+{
+    const Span<const unsigned char> &input = MakeUCharSpan(in1);
+
+    uint256 result;
+    scrypt_N_1_1_256(input.data(), input.size(), static_cast<void*>(&result), 1048576);
     return result;
 }
 
