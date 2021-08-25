@@ -178,6 +178,8 @@ BITCOIN_CORE_H = \
   policy/rbf.h \
   policy/settings.h \
   pow.h \
+  primes.h \
+  primes_list.h \
   protocol.h \
   psbt.h \
   random.h \
@@ -316,6 +318,8 @@ libbitcoin_server_a_SOURCES = \
   policy/rbf.cpp \
   policy/settings.cpp \
   pow.cpp \
+  primes.cpp \
+  primes_list.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \

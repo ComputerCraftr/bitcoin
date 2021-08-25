@@ -30,13 +30,23 @@ public:
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
+    // Prime factors of the integer generated from the previous block hash used for PoW
+    std::vector<unsigned char> vPrimeFactors;
 
     CBlockHeader()
     {
         SetNull();
     }
 
-    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce); }
+    SERIALIZE_METHODS(CBlockHeader, obj)
+    {
+        READWRITE(obj.nVersion);
+        if ((obj.nVersion & VERSION_ALGO_MASK) != VERSION_ALGO_POW_FACTORIZATION) {
+            READWRITE(obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce);
+        } else {
+            READWRITE(obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.vPrimeFactors);
+        }
+    }
 
     void SetNull()
     {
@@ -46,6 +56,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        vPrimeFactors.clear();
     }
 
     bool IsNull() const
@@ -68,12 +79,14 @@ public:
     enum AlgoType {
         ALGO_POS = 0,
         ALGO_POW_SHA256 = 1,
+        ALGO_POW_FACTORIZATION = 2,
         ALGO_COUNT
     };
 
     enum AlgoFlag {
         VERSION_ALGO_POS = 1<<29,
         VERSION_ALGO_POW_SHA256 = 2<<29,
+        VERSION_ALGO_POW_FACTORIZATION = 3<<29,
         VERSION_ALGO_MASK = 7<<29,
         VERSION_ALGO_POW_MASK = 6<<29
     };
@@ -85,6 +98,8 @@ public:
             return ALGO_POS;
         case VERSION_ALGO_POW_SHA256:
             return ALGO_POW_SHA256;
+        case VERSION_ALGO_POW_FACTORIZATION:
+            return ALGO_POW_FACTORIZATION;
         default:
             return -1;
         }
@@ -97,6 +112,8 @@ public:
             return VERSION_ALGO_POS;
         case ALGO_POW_SHA256:
             return VERSION_ALGO_POW_SHA256;
+        case ALGO_POW_FACTORIZATION:
+            return VERSION_ALGO_POW_FACTORIZATION;
         default:
             return FIRST_FORK_VERSION;
         }
@@ -160,6 +177,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.vPrimeFactors  = vPrimeFactors;
         return block;
     }
 
