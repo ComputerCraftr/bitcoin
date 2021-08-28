@@ -84,7 +84,7 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
             return false;
         }
 
-        uint32_t numOfFactor;
+        uint32_t numOfFactor = 0;
         memcpy(&numOfFactor, vPrimeFactors.data()+currentPos+1, vPrimeFactors[currentPos]); // read factor count from byte vector
         numOfFactor = le32toh(numOfFactor); // number is stored in little endian format
         for (uint32_t i = 0; i < numOfFactor; i++) {
