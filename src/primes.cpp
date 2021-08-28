@@ -5,6 +5,7 @@
 #include <primes.h>
 
 #include <arith_uint256.h>
+#include <crypto/common.h>
 #include <crypto/pbkdf2_hmac.h>
 #include <primes_list.h>
 
@@ -49,21 +50,23 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     const uint32_t nBytes = (nBits + 7) / 8; // round up while converting bits to bytes
     const uint32_t nBitsRemainder = nBits % 8;
     arith_uint512 integerToFactor;
-    pbkdf2_hmac_sha256((const unsigned char*)&hashPrevBlock, 32, (const unsigned char*)&nBits, 4, 1, nBytes, (unsigned char*)&integerToFactor);
+    uint32_t nBitsLE;
+    WriteLE32((unsigned char*)&nBitsLE, nBits); // bits is hashed in little endian format
+    pbkdf2_hmac_sha256((const unsigned char*)&hashPrevBlock, 32, (const unsigned char*)&nBitsLE, 4, 1, nBytes, (unsigned char*)&integerToFactor);
     if (nBitsRemainder) {
         integerToFactor >>= 8 - nBitsRemainder; // adjust the length to the proper number of bits
     }
     integerToFactor |= arith_uint512(1) << (nBits - 1); // ensure the top bit of integerToFactor is always set so that the hmac sha256 hash cannot be "mined" to produce a smaller number for factoring
     integerToFactor |= 1u; // ensure integerToFactor is always an odd number by setting the bottom bit
 
-    arith_uint512 integerToCheck;
+    arith_uint512 integerToCheck(1);
     uint64_t currentPos = 0;
     while (currentPos < vPrimeFactors.size()) {
         if (currentPos + vPrimeFactors[currentPos] >= vPrimeFactors.size()) {
             return false;
         }
         // TODO: support unlimited length factors
-        if (vPrimeFactors[currentPos] > 64) {
+        if (vPrimeFactors[currentPos] > 64 || vPrimeFactors[currentPos] == 0) {
             return false;
         }
 
@@ -77,10 +80,13 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
         if (currentPos + vPrimeFactors[currentPos] >= vPrimeFactors.size()) {
             return false;
         }
-        uint32_t numOfFactor = std::accumulate(vPrimeFactors.begin()+currentPos+1, vPrimeFactors.begin()+currentPos+vPrimeFactors[currentPos]+1, 0,
-                                               [](const uint32_t pos, const unsigned char byte) {
-            return 10 * pos + (byte - '0');
-        }); // read factor count from byte vector
+        if (vPrimeFactors[currentPos] > 4 || vPrimeFactors[currentPos] == 0) {
+            return false;
+        }
+
+        uint32_t numOfFactor;
+        memcpy(&numOfFactor, vPrimeFactors.data()+currentPos+1, vPrimeFactors[currentPos]); // read factor count from byte vector
+        numOfFactor = le32toh(numOfFactor); // number is stored in little endian format
         for (uint32_t i = 0; i < numOfFactor; i++) {
             integerToCheck *= factor;
         }
