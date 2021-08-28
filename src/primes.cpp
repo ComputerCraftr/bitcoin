@@ -60,6 +60,7 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     integerToFactor |= 1u; // ensure integerToFactor is always an odd number by setting the bottom bit
 
     arith_uint512 integerToCheck(1);
+    arith_uint512 lastFactor;
     uint64_t currentPos = 0;
     while (currentPos < vPrimeFactors.size()) {
         if (currentPos + vPrimeFactors[currentPos] >= vPrimeFactors.size()) {
@@ -72,6 +73,9 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
 
         arith_uint512 factor;
         memcpy((void*)&factor, vPrimeFactors.data()+currentPos+1, vPrimeFactors[currentPos]); // read factor from byte vector
+        if (factor <= lastFactor) {
+            return false;
+        }
         if (!IsPrime(factor)) {
             return false;
         }
@@ -92,6 +96,7 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
         }
 
         currentPos += vPrimeFactors[currentPos] + 1; // skip ahead to next factor length byte
+        lastFactor = factor;
     }
 
     return integerToFactor == integerToCheck;
