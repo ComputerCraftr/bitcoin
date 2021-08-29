@@ -8,8 +8,6 @@
 #include <crypto/pbkdf2_hmac.h>
 #include <primes_list.h>
 
-#include <numeric>
-
 bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits, const std::vector<unsigned char>& vPrimeFactors)
 {
     // TODO: support factoring unlimited length integers
@@ -71,6 +69,12 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     return integerToFactor == integerToCheck;
 }
 
+bool AKSPrimalityTest(const arith_uint512& factor)
+{
+    // TODO
+    return false;
+}
+
 // TODO: replace arith_uint512 to allow this function to handle unlimited length integers
 bool IsPrime(const arith_uint512& factor)
 {
@@ -95,7 +99,7 @@ bool IsPrime(const arith_uint512& factor)
             }
         }
     } else {
-        // AKS primality test
+        return AKSPrimalityTest(factor);
     }
 
     return false;

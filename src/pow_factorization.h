@@ -13,6 +13,6 @@
 
 bool IsPrime(const arith_uint512& factor);
 
-bool CheckPrimeFactorization(const uint256& hashPrevBlock, const unsigned int& nBits, const std::vector<unsigned char>& vPrimeFactors);
+bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits, const std::vector<unsigned char>& vPrimeFactors);
 
 #endif // BITCOIN_POW_FACTORIZATION_H
