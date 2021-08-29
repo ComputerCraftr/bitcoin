@@ -50,16 +50,16 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     const uint32_t nBytes = (nBits + 7) / 8; // round up while converting bits to bytes
     const uint32_t nBitsRemainder = nBits % 8;
     arith_uint512 integerToFactor;
+    arith_uint512 integerToCheck(1);
     uint32_t nBitsLE;
     WriteLE32((unsigned char*)&nBitsLE, nBits); // bits is hashed in little endian format
     pbkdf2_hmac_sha256((const unsigned char*)&hashPrevBlock, 32, (const unsigned char*)&nBitsLE, 4, 1, nBytes, (unsigned char*)&integerToFactor);
     if (nBitsRemainder) {
         integerToFactor >>= 8 - nBitsRemainder; // adjust the length to the proper number of bits
     }
-    integerToFactor |= arith_uint512(1) << (nBits - 1); // ensure the top bit of integerToFactor is always set so that the hmac sha256 hash cannot be "mined" to produce a smaller number for factoring
+    integerToFactor |= integerToCheck << (nBits - 1); // ensure the top bit of integerToFactor is always set so that the hmac sha256 hash cannot be "mined" to produce a smaller number for factoring
     integerToFactor |= 1u; // ensure integerToFactor is always an odd number by setting the bottom bit
 
-    arith_uint512 integerToCheck(1);
     arith_uint512 lastFactor;
     uint64_t currentPos = 0;
     while (currentPos < vPrimeFactors.size()) {
