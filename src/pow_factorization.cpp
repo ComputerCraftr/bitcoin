@@ -69,37 +69,37 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     return integerToFactor == integerToCheck;
 }
 
-bool AKSPrimalityTest(const arith_uint512& factor)
+bool AKSPrimalityTest(const arith_uint512& nFactor)
 {
     // TODO
     return false;
 }
 
 // TODO: replace arith_uint512 to allow this function to handle unlimited length integers
-bool IsPrime(const arith_uint512& factor)
+bool IsPrime(const arith_uint512& nFactor)
 {
-    static const arith_uint512 UINT8_MAX_VALUE = arith_uint512(UINT8_MAX);
-    static const arith_uint512 UINT16_MAX_VALUE = arith_uint512(UINT16_MAX);
+    static const arith_uint512 UINT8_MAX_VALUE(UINT8_MAX);
+    static const arith_uint512 UINT16_MAX_VALUE(UINT16_MAX);
+    const uint64_t& nFactorLowBits = nFactor.GetLow64();
 
-    if (factor <= UINT8_MAX_VALUE) {
-        const uint8_t& nFactor = static_cast<uint8_t>(factor.GetLow64());
-        if (nFactor < 2) {
-            return false;
-        }
-        for (const uint8_t& prime : PRIMES_8_BIT) {
-            if (prime == nFactor) {
+    if (!(nFactorLowBits & 1u)) {
+        return nFactor == 2; // all primes are odd with the exception of 2
+    }
+
+    if (nFactor <= UINT8_MAX_VALUE) {
+        for (uint32_t i = 0; i < COUNT_PRIMES_8_BIT; i++) {
+            if (nFactorLowBits == PRIMES_8_BIT[i]) {
                 return true;
             }
         }
-    } else if (factor <= UINT16_MAX_VALUE) {
-        const uint16_t& nFactor = static_cast<uint16_t>(factor.GetLow64());
-        for (const uint16_t& prime : PRIMES_16_BIT) {
-            if (prime == nFactor) {
+    } else if (nFactor <= UINT16_MAX_VALUE) {
+        for (uint32_t i = 0; i < COUNT_PRIMES_16_BIT; i++) {
+            if (nFactorLowBits == PRIMES_16_BIT[i]) {
                 return true;
             }
         }
     } else {
-        return AKSPrimalityTest(factor);
+        return AKSPrimalityTest(nFactor);
     }
 
     return false;

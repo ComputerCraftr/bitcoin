@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <vector>
 
-bool IsPrime(const arith_uint512& factor);
+bool IsPrime(const arith_uint512& nFactor);
 
 bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits, const std::vector<unsigned char>& vPrimeFactors);
 

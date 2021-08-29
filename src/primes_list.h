@@ -7,7 +7,10 @@
 
 #include <stdint.h>
 
-/*inline*/ constexpr uint8_t PRIMES_8_BIT[54] = {
+/*inline*/ constexpr uint16_t COUNT_PRIMES_8_BIT = 54;
+/*inline*/ constexpr uint16_t COUNT_PRIMES_16_BIT = 6488;
+
+/*inline*/ constexpr uint8_t PRIMES_8_BIT[COUNT_PRIMES_8_BIT] = {
     2,
     3,
     5,
@@ -64,7 +67,7 @@
     251,
 };
 
-/*inline*/ constexpr uint16_t PRIMES_16_BIT[6488] = {
+/*inline*/ constexpr uint16_t PRIMES_16_BIT[COUNT_PRIMES_16_BIT] = {
     257,
     263,
     269,
