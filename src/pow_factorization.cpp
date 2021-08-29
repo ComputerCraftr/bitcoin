@@ -2,44 +2,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <primes.h>
+#include <pow_factorization.h>
 
-#include <arith_uint256.h>
 #include <crypto/common.h>
 #include <crypto/pbkdf2_hmac.h>
 #include <primes_list.h>
 
 #include <numeric>
-
-// TODO: replace arith_uint512 to allow this function to handle unlimited length integers
-bool IsPrime(const arith_uint512& factor)
-{
-    static const arith_uint512 UINT8_MAX_VALUE = arith_uint512(UINT8_MAX);
-    static const arith_uint512 UINT16_MAX_VALUE = arith_uint512(UINT16_MAX);
-
-    if (factor <= UINT8_MAX_VALUE) {
-        const uint8_t& nFactor = static_cast<uint8_t>(factor.GetLow64());
-        if (nFactor < 2) {
-            return false;
-        }
-        for (const uint8_t& prime : PRIMES_8_BIT) {
-            if (prime == nFactor) {
-                return true;
-            }
-        }
-    } else if (factor <= UINT16_MAX_VALUE) {
-        const uint16_t& nFactor = static_cast<uint16_t>(factor.GetLow64());
-        for (const uint16_t& prime : PRIMES_16_BIT) {
-            if (prime == nFactor) {
-                return true;
-            }
-        }
-    } else {
-        // AKS primality test
-    }
-
-    return false;
-}
 
 bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits, const std::vector<unsigned char>& vPrimeFactors)
 {
@@ -100,4 +69,34 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     }
 
     return integerToFactor == integerToCheck;
+}
+
+// TODO: replace arith_uint512 to allow this function to handle unlimited length integers
+bool IsPrime(const arith_uint512& factor)
+{
+    static const arith_uint512 UINT8_MAX_VALUE = arith_uint512(UINT8_MAX);
+    static const arith_uint512 UINT16_MAX_VALUE = arith_uint512(UINT16_MAX);
+
+    if (factor <= UINT8_MAX_VALUE) {
+        const uint8_t& nFactor = static_cast<uint8_t>(factor.GetLow64());
+        if (nFactor < 2) {
+            return false;
+        }
+        for (const uint8_t& prime : PRIMES_8_BIT) {
+            if (prime == nFactor) {
+                return true;
+            }
+        }
+    } else if (factor <= UINT16_MAX_VALUE) {
+        const uint16_t& nFactor = static_cast<uint16_t>(factor.GetLow64());
+        for (const uint16_t& prime : PRIMES_16_BIT) {
+            if (prime == nFactor) {
+                return true;
+            }
+        }
+    } else {
+        // AKS primality test
+    }
+
+    return false;
 }
