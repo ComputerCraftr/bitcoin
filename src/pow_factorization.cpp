@@ -69,9 +69,82 @@ bool CheckPrimeFactorization(const uint256& hashPrevBlock, const uint32_t& nBits
     return integerToFactor == integerToCheck;
 }
 
-bool AKSPrimalityTest(const arith_uint512& nFactor)
+bool BailliePSWProbablePrimalityTest(const arith_uint512& nFactor)
 {
     // TODO
+    return false;
+}
+
+arith_uint512 FastExp(arith_uint512 base, uint8_t exponent)
+{
+    if (base == 0 || !exponent) {
+        return arith_uint512();
+    }
+    arith_uint512 result(1);
+
+    while (true) {
+        if (exponent & 1) {
+            result *= base;
+        }
+        exponent >>= 1;
+        if (!exponent) {
+            return result;
+        }
+        base *= base;
+    }
+}
+
+arith_uint512 FastBase2Exp(uint8_t exponent)
+{
+    if (!exponent) {
+        return arith_uint512();
+    }
+    arith_uint512 baseMultiplier(2); // The exponent must have at most 8 bits to prevent overflowing baseMultiplier as an arith_uint512 would not be able to hold 2^2^9
+    arith_uint512 result(1);
+
+    while (true) {
+        if (exponent & 1) {
+            result *= baseMultiplier;
+        }
+        exponent >>= 1;
+        if (!exponent) {
+            return result;
+        }
+        baseMultiplier *= baseMultiplier;
+    }
+}
+
+// TODO: replace arith_uint256 to allow this function to handle unlimited length integers
+bool IsPerfectPower(const arith_uint256& nFactor)
+{
+    if (nFactor < 2) {
+        return true;
+    }
+
+    static const arith_uint512 ONE(1);
+    const arith_uint512 nFactor512(nFactor);
+    arith_uint512 a(ONE);
+    arith_uint512 c(nFactor);
+    arith_uint512 m;
+
+    for (uint32_t b = 2; b <= UINT8_MAX && FastBase2Exp(b) <= nFactor512; b++) {
+        while (c - a >= 2) {
+            m = (c + a) / 2;
+            const arith_uint512& m_b = FastExp(m, b);
+            arith_uint512 n(nFactor + 1);
+            arith_uint512 p(m_b <= n ? m_b : n);
+            if (p == nFactor512) {
+                return true;
+            } else if (p < nFactor512) {
+                memcpy((void*)&a, (void*)&m, 64);
+            } else {
+                memcpy((void*)&c, (void*)&m, 64);
+            }
+        }
+        memcpy((void*)&a, (void*)&ONE, 64);
+        memcpy((void*)&c, (void*)&nFactor512, 64);
+    }
+
     return false;
 }
 
@@ -80,6 +153,7 @@ bool IsPrime(const arith_uint512& nFactor)
 {
     static const arith_uint512 UINT8_MAX_VALUE(UINT8_MAX);
     static const arith_uint512 UINT16_MAX_VALUE(UINT16_MAX);
+    static const arith_uint512 UINT256_MAX_VALUE(~arith_uint256());
     const uint64_t& nFactorLowBits = nFactor.GetLow64();
 
     if (!(nFactorLowBits & 1u)) {
@@ -99,7 +173,10 @@ bool IsPrime(const arith_uint512& nFactor)
             }
         }
     } else {
-        return AKSPrimalityTest(nFactor);
+        if (nFactor <= UINT256_MAX_VALUE && IsPerfectPower(nFactor.trim256())) {
+            return false;
+        }
+        return BailliePSWProbablePrimalityTest(nFactor);
     }
 
     return false;
