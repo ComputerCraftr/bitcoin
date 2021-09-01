@@ -5,38 +5,115 @@
 #ifndef BITCOIN_BIGINTEGER_H
 #define BITCOIN_BIGINTEGER_H
 
-#include <cassert>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <stdint.h>
+#include <cstdint>
 
 class CBigInteger
 {
 private:
     uint8_t *dataPtr = nullptr;
-    uint16_t nBytes = 0;
+    uint32_t nBytes = 0;
 
 public:
-    CBigInteger(uint16_t bytes) :
-    dataPtr((uint8_t*)malloc(bytes)),
-    nBytes(bytes)
+    CBigInteger(uint32_t bytes)
     {
-        assert("Failed to allocate memory for CBigInteger!" && dataPtr);
+        nBytes = bytes;
+        dataPtr = (uint8_t*)calloc(nBytes, 1);
+        if (!IsInitialized()) {
+            nBytes = 0;
+        }
     }
 
-    CBigInteger(const CBigInteger& bigint) :
-    dataPtr((uint8_t*)malloc(bigint.nBytes)),
-    nBytes(bigint.nBytes)
+    CBigInteger(const CBigInteger& bigint)
     {
-        assert("Failed to allocate memory for CBigInteger!" && dataPtr);
-        if (bigint.dataPtr) {
-            memcpy(dataPtr, bigint.dataPtr, bigint.nBytes);
+        if (bigint.IsInitialized()) {
+            nBytes = bigint.nBytes;
+            dataPtr = (uint8_t*)malloc(nBytes);
+            if (IsInitialized()) {
+                memcpy(dataPtr, bigint.dataPtr, nBytes);
+            } else {
+                nBytes = 0;
+            }
         }
+    }
+
+    CBigInteger(uint64_t num, uint32_t bytes)
+    {
+        nBytes = std::max(bytes, (uint32_t)sizeof(uint64_t));
+        dataPtr = (uint8_t*)malloc(nBytes);
+        if (IsInitialized()) {
+            memcpy(dataPtr, &num, sizeof(uint64_t));
+        } else {
+            nBytes = 0;
+        }
+
     }
 
     ~CBigInteger()
     {
         free(dataPtr);
+    }
+
+    void operator=(const CBigInteger& bigint)
+    {
+        free(dataPtr);
+        if (bigint.IsInitialized()) {
+            nBytes = bigint.nBytes;
+            dataPtr = (uint8_t*)malloc(nBytes);
+            if (IsInitialized()) {
+                memcpy(dataPtr, bigint.dataPtr, nBytes);
+            } else {
+                nBytes = 0;
+            }
+        } else {
+            dataPtr = nullptr;
+            nBytes = 0;
+        }
+    }
+
+    void operator=(uint64_t num)
+    {
+        if (nBytes >= sizeof(uint64_t)) {
+            memset(dataPtr, '\0', nBytes);
+        } else {
+            nBytes = sizeof(uint64_t);
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+        }
+
+        if (IsInitialized()) {
+            memcpy(dataPtr, &num, sizeof(uint64_t));
+        } else {
+            nBytes = 0;
+        }
+    }
+
+    bool operator==(const CBigInteger& bigint)
+    {
+        return nBytes == bigint.nBytes && memcmp(dataPtr, bigint.dataPtr, nBytes) == 0;
+    }
+
+    bool IsInitialized() const
+    {
+        return dataPtr != nullptr && nBytes != 0;
+    }
+
+    uint64_t GetLow64() const
+    {
+        uint64_t ret = 0;
+        memcpy(&ret, dataPtr, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        return ret;
+    }
+
+    uint32_t LengthBytes() const
+    {
+        return nBytes;
+    }
+
+    uint32_t LengthBits() const
+    {
+        return nBytes * 8;
     }
 };
 
