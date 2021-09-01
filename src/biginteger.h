@@ -13,7 +13,7 @@
 class CBigInteger
 {
 private:
-    uint8_t *dataPtr = nullptr;
+    uint8_t* dataPtr = nullptr;
     uint32_t nBytes = 0;
 
 public:
@@ -75,9 +75,9 @@ public:
 
     void operator=(uint64_t num)
     {
-        if (nBytes >= sizeof(uint64_t)) {
+        if (nBytes > sizeof(uint64_t)) {
             memset(dataPtr, '\0', nBytes);
-        } else {
+        } else if (nBytes < sizeof(uint64_t)) {
             nBytes = sizeof(uint64_t);
             dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
         }
@@ -94,9 +94,91 @@ public:
         return nBytes == bigint.nBytes && memcmp(dataPtr, bigint.dataPtr, nBytes) == 0;
     }
 
+    bool operator!=(const CBigInteger& bigint)
+    {
+        return nBytes != bigint.nBytes || memcmp(dataPtr, bigint.dataPtr, nBytes) != 0;
+    }
+
+    bool operator>(const CBigInteger& bigint)
+    {
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) > 0;
+    }
+
+    bool operator<(const CBigInteger& bigint)
+    {
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) < 0;
+    }
+
+    bool operator>=(const CBigInteger& bigint)
+    {
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) >= 0;
+    }
+
+    bool operator<=(const CBigInteger& bigint)
+    {
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) <= 0;
+    }
+
     bool IsInitialized() const
     {
         return dataPtr != nullptr && nBytes != 0;
+    }
+
+    const uint8_t* GetData() const
+    {
+        return dataPtr;
     }
 
     uint64_t GetLow64() const
