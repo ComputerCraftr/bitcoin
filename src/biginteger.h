@@ -58,16 +58,16 @@ public:
 
     void operator=(const CBigInteger& bigint)
     {
-        free(dataPtr);
         if (bigint.IsInitialized()) {
             nBytes = bigint.nBytes;
-            dataPtr = (uint8_t*)malloc(nBytes);
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
             if (IsInitialized()) {
                 memcpy(dataPtr, bigint.dataPtr, nBytes);
             } else {
                 nBytes = 0;
             }
         } else {
+            free(dataPtr);
             dataPtr = nullptr;
             nBytes = 0;
         }
