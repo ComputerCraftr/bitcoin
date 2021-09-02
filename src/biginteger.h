@@ -89,17 +89,26 @@ public:
         }
     }
 
-    bool operator==(const CBigInteger& bigint)
+    const CBigInteger operator~() const
+    {
+        CBigInteger ret(*this);
+        for (uint32_t i = 0; i < ret.nBytes; i++) {
+            ret.dataPtr[i] = ~ret.dataPtr[i];
+        }
+        return ret;
+    }
+
+    bool operator==(const CBigInteger& bigint) const
     {
         return nBytes == bigint.nBytes && memcmp(dataPtr, bigint.dataPtr, nBytes) == 0;
     }
 
-    bool operator!=(const CBigInteger& bigint)
+    bool operator!=(const CBigInteger& bigint) const
     {
         return nBytes != bigint.nBytes || memcmp(dataPtr, bigint.dataPtr, nBytes) != 0;
     }
 
-    bool operator>(const CBigInteger& bigint)
+    bool operator>(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
             for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
@@ -117,7 +126,7 @@ public:
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) > 0;
     }
 
-    bool operator<(const CBigInteger& bigint)
+    bool operator<(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
             for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
@@ -135,7 +144,7 @@ public:
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) < 0;
     }
 
-    bool operator>=(const CBigInteger& bigint)
+    bool operator>=(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
             for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
@@ -153,7 +162,7 @@ public:
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) >= 0;
     }
 
-    bool operator<=(const CBigInteger& bigint)
+    bool operator<=(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
             for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
