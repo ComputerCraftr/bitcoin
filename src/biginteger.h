@@ -100,12 +100,38 @@ public:
 
     bool operator==(const CBigInteger& bigint) const
     {
-        return nBytes == bigint.nBytes && memcmp(dataPtr, bigint.dataPtr, nBytes) == 0;
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) == 0;
     }
 
     bool operator!=(const CBigInteger& bigint) const
     {
-        return nBytes != bigint.nBytes || memcmp(dataPtr, bigint.dataPtr, nBytes) != 0;
+        if (nBytes > bigint.nBytes) {
+            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        } else if (nBytes < bigint.nBytes) {
+            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+                if (bigint.dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) != 0;
     }
 
     bool operator>(const CBigInteger& bigint) const
@@ -183,6 +209,13 @@ public:
     bool IsInitialized() const
     {
         return dataPtr != nullptr && nBytes != 0;
+    }
+
+    void SetNull()
+    {
+        free(dataPtr);
+        dataPtr = nullptr;
+        nBytes = 0;
     }
 
     const uint8_t* GetData() const
