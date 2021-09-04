@@ -17,7 +17,7 @@ private:
     uint32_t nBytes = 0;
 
 public:
-    CBigInteger(uint32_t bytes)
+    CBigInteger(const uint32_t& bytes)
     {
         nBytes = bytes;
         dataPtr = (uint8_t*)calloc(nBytes, 1);
@@ -39,7 +39,7 @@ public:
         }
     }
 
-    CBigInteger(uint64_t num, uint32_t bytes)
+    CBigInteger(const uint64_t& num, const uint32_t& bytes)
     {
         nBytes = std::max(bytes, (uint32_t)sizeof(uint64_t));
         dataPtr = (uint8_t*)malloc(nBytes);
@@ -73,7 +73,7 @@ public:
         }
     }
 
-    void operator=(uint64_t num)
+    void operator=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
             memset(dataPtr, '\0', nBytes);
@@ -206,6 +206,78 @@ public:
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) <= 0;
     }
 
+    bool operator==(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return GetLow64() == num;
+    }
+
+    bool operator!=(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return GetLow64() != num;
+    }
+
+    bool operator>(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return GetLow64() > num;
+    }
+
+    bool operator<(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return GetLow64() < num;
+    }
+
+    bool operator>=(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return true;
+                }
+            }
+        }
+        return GetLow64() >= num;
+    }
+
+    bool operator<=(const uint64_t& num) const
+    {
+        if (nBytes > sizeof(uint64_t)) {
+            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+                if (dataPtr[i] != 0) {
+                    return false;
+                }
+            }
+        }
+        return GetLow64() <= num;
+    }
+
     bool IsInitialized() const
     {
         return dataPtr != nullptr && nBytes != 0;
@@ -238,6 +310,11 @@ public:
     uint32_t LengthBits() const
     {
         return nBytes * 8;
+    }
+
+    uint8_t* data()
+    {
+        return dataPtr;
     }
 };
 
