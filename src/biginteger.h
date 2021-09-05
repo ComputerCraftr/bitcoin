@@ -73,6 +73,47 @@ public:
         }
     }
 
+    void operator^=(const CBigInteger& bigint)
+    {
+        uint32_t bytes;
+        if (nBytes < bigint.nBytes) {
+            nBytes = bigint.nBytes;
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+            bytes = nBytes;
+        } else {
+            bytes = std::min(nBytes, bigint.nBytes);
+        }
+
+        for (uint32_t i = 0; i < bytes; i++) {
+            dataPtr[i] ^= bigint.dataPtr[i];
+        }
+    }
+
+    void operator&=(const CBigInteger& bigint)
+    {
+        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+
+        for (uint32_t i = 0; i < bytes; i++) {
+            dataPtr[i] &= bigint.dataPtr[i];
+        }
+    }
+
+    void operator|=(const CBigInteger& bigint)
+    {
+        uint32_t bytes;
+        if (nBytes < bigint.nBytes) {
+            nBytes = bigint.nBytes;
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+            bytes = nBytes;
+        } else {
+            bytes = std::min(nBytes, bigint.nBytes);
+        }
+
+        for (uint32_t i = 0; i < bytes; i++) {
+            dataPtr[i] |= bigint.dataPtr[i];
+        }
+    }
+
     void operator=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
@@ -87,6 +128,36 @@ public:
         } else {
             nBytes = 0;
         }
+    }
+
+    void operator^=(const uint64_t& num)
+    {
+        if (nBytes < sizeof(uint64_t)) {
+            nBytes = sizeof(uint64_t);
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+        }
+
+        ((uint64_t*)dataPtr)[0] ^= num;
+    }
+
+    void operator&=(const uint64_t& num)
+    {
+        if (nBytes < sizeof(uint64_t)) {
+            nBytes = sizeof(uint64_t);
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+        }
+
+        ((uint64_t*)dataPtr)[0] &= num;
+    }
+
+    void operator|=(const uint64_t& num)
+    {
+        if (nBytes < sizeof(uint64_t)) {
+            nBytes = sizeof(uint64_t);
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
+        }
+
+        ((uint64_t*)dataPtr)[0] |= num;
     }
 
     const CBigInteger operator~() const
@@ -299,6 +370,13 @@ public:
     {
         uint64_t ret = 0;
         memcpy(&ret, dataPtr, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        return ret;
+    }
+
+    uint64_t Get64(const uint32_t& offset) const
+    {
+        uint64_t ret = 0;
+        memcpy(&ret, dataPtr + std::min(offset, nBytes - (uint32_t)sizeof(uint64_t)), std::min(nBytes, (uint32_t)sizeof(uint64_t)));
         return ret;
     }
 
