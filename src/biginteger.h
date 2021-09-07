@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <string>
+
+/*inline*/ constexpr char HEX_CHARS[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 class CBigInteger
 {
@@ -17,10 +20,14 @@ private:
     uint32_t nBytes = 0;
 
 public:
-    CBigInteger(const uint32_t& bytes)
+    CBigInteger(const uint32_t& bytes, const bool zero)
     {
         nBytes = bytes;
-        dataPtr = (uint8_t*)calloc(nBytes, 1);
+        if (zero) {
+            dataPtr = (uint8_t*)calloc(nBytes, 1);
+        } else {
+            dataPtr = (uint8_t*)malloc(nBytes);
+        }
         if (!IsInitialized()) {
             nBytes = 0;
         }
@@ -39,10 +46,10 @@ public:
         }
     }
 
-    CBigInteger(const uint64_t& num, const uint32_t& bytes)
+    CBigInteger(const uint64_t& num)
     {
-        nBytes = std::max(bytes, (uint32_t)sizeof(uint64_t));
-        dataPtr = (uint8_t*)malloc(nBytes);
+        nBytes = sizeof(uint64_t);
+        dataPtr = (uint8_t*)malloc(sizeof(uint64_t));
         if (IsInitialized()) {
             memcpy(dataPtr, &num, sizeof(uint64_t));
         } else {
@@ -59,17 +66,15 @@ public:
     void operator=(const CBigInteger& bigint)
     {
         if (bigint.IsInitialized()) {
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             nBytes = bigint.nBytes;
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
             if (IsInitialized()) {
                 memcpy(dataPtr, bigint.dataPtr, nBytes);
             } else {
                 nBytes = 0;
             }
         } else {
-            free(dataPtr);
-            dataPtr = nullptr;
-            nBytes = 0;
+            SetNull();
         }
     }
 
@@ -77,11 +82,12 @@ public:
     {
         uint32_t bytes;
         if (nBytes < bigint.nBytes) {
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
             bytes = nBytes;
         } else {
-            bytes = std::min(nBytes, bigint.nBytes);
+            bytes = bigint.nBytes;
         }
 
         for (uint32_t i = 0; i < bytes; i++) {
@@ -102,11 +108,12 @@ public:
     {
         uint32_t bytes;
         if (nBytes < bigint.nBytes) {
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
             bytes = nBytes;
         } else {
-            bytes = std::min(nBytes, bigint.nBytes);
+            bytes = bigint.nBytes;
         }
 
         for (uint32_t i = 0; i < bytes; i++) {
@@ -119,8 +126,8 @@ public:
         if (nBytes > sizeof(uint64_t)) {
             memset(dataPtr, '\0', nBytes);
         } else if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             nBytes = sizeof(uint64_t);
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
         }
 
         if (IsInitialized()) {
@@ -133,8 +140,9 @@ public:
     void operator^=(const uint64_t& num)
     {
         if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
         }
 
         ((uint64_t*)dataPtr)[0] ^= num;
@@ -143,8 +151,9 @@ public:
     void operator&=(const uint64_t& num)
     {
         if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
         }
 
         ((uint64_t*)dataPtr)[0] &= num;
@@ -153,8 +162,9 @@ public:
     void operator|=(const uint64_t& num)
     {
         if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
-            dataPtr = (uint8_t*)realloc(dataPtr, nBytes);
         }
 
         ((uint64_t*)dataPtr)[0] |= num;
@@ -373,11 +383,47 @@ public:
         return ret;
     }
 
+    uint64_t GetHigh64() const
+    {
+        const uint32_t bytesSkipped = std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t));
+        uint64_t ret = 0;
+        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        return ret;
+    }
+
     uint64_t Get64(const uint32_t& offset) const
     {
+        const uint32_t bytesSkipped = std::min(offset, (uint32_t)std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t)));
         uint64_t ret = 0;
-        memcpy(&ret, dataPtr + std::min(offset, nBytes - (uint32_t)sizeof(uint64_t)), std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
         return ret;
+    }
+
+    std::string GetHexBE() const
+    {
+        std::string ret;
+        ret.reserve(nBytes * 2);
+        for (int64_t i = nBytes - 1; i >= 0; i--) {
+            ret.push_back(HEX_CHARS[dataPtr[i] >> 4]);
+            ret.push_back(HEX_CHARS[dataPtr[i] & 15]);
+        }
+        return ret;
+    }
+
+    std::string GetHexLE() const
+    {
+        std::string ret;
+        ret.reserve(nBytes * 2);
+        for (uint32_t i = 0; i < nBytes; i++) {
+            ret.push_back(HEX_CHARS[dataPtr[i] >> 4]);
+            ret.push_back(HEX_CHARS[dataPtr[i] & 15]);
+        }
+        return ret;
+    }
+
+    std::string ToString() const
+    {
+        return GetHexBE();
     }
 
     uint32_t LengthBytes() const
@@ -388,6 +434,16 @@ public:
     uint32_t LengthBits() const
     {
         return nBytes * 8;
+    }
+
+    const uint8_t* begin() const
+    {
+        return &dataPtr[0];
+    }
+
+    const uint8_t* end() const
+    {
+        return &dataPtr[nBytes];
     }
 
     uint8_t* data()
