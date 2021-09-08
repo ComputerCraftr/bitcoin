@@ -121,6 +121,46 @@ public:
         }
     }
 
+    void operator+=(const CBigInteger& bigint)
+    {
+        uint32_t bytes;
+        if (nBytes < bigint.nBytes) {
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
+            nBytes = bigint.nBytes;
+            bytes = nBytes;
+        } else {
+            bytes = bigint.nBytes;
+        }
+
+        uint32_t carry = 0;
+        for (uint32_t i = 0; i < nBytes; i++) {
+            uint32_t n;
+            if (i < bytes) {
+                n = carry + dataPtr[i] + bigint.dataPtr[i];
+            } else {
+                n = carry + dataPtr[i];
+            }
+            dataPtr[i] = n & 0xff;
+            carry = n >> 8;
+        }
+
+        if (carry) {
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
+            dataPtr[nBytes] = carry & 0xff;
+            nBytes++;
+        }
+    }
+
+    void operator-=(const CBigInteger& bigint)
+    {
+        if (*this <= bigint) {
+            memset(dataPtr, '\0', nBytes);
+        } else {
+            this->AddWithoutResize(-bigint);
+        }
+    }
+
     void operator=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
@@ -179,6 +219,16 @@ public:
         return ret;
     }
 
+    const CBigInteger operator-() const
+    {
+        CBigInteger ret(*this);
+        for (uint32_t i = 0; i < ret.nBytes; i++) {
+            ret.dataPtr[i] = ~ret.dataPtr[i];
+        }
+        ret.AddWithoutResize(1);
+        return ret;
+    }
+
     bool operator==(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
@@ -194,6 +244,7 @@ public:
                 }
             }
         }
+
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) == 0;
     }
 
@@ -212,6 +263,7 @@ public:
                 }
             }
         }
+
         return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) != 0;
     }
 
@@ -230,7 +282,17 @@ public:
                 }
             }
         }
-        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) > 0;
+
+        // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
+        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+
+        for (int64_t i = bytes - 1; i >= 0; i--) {
+            if (dataPtr[i] < bigint.dataPtr[i]) {
+                return false;
+            }
+        }
+
+        return memcmp(dataPtr, bigint.dataPtr, bytes) != 0;
     }
 
     bool operator<(const CBigInteger& bigint) const
@@ -248,7 +310,17 @@ public:
                 }
             }
         }
-        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) < 0;
+
+        // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
+        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+
+        for (int64_t i = bytes - 1; i >= 0; i--) {
+            if (dataPtr[i] > bigint.dataPtr[i]) {
+                return false;
+            }
+        }
+
+        return memcmp(dataPtr, bigint.dataPtr, bytes) != 0;
     }
 
     bool operator>=(const CBigInteger& bigint) const
@@ -266,7 +338,17 @@ public:
                 }
             }
         }
-        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) >= 0;
+
+        // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
+        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+
+        for (int64_t i = bytes - 1; i >= 0; i--) {
+            if (dataPtr[i] < bigint.dataPtr[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     bool operator<=(const CBigInteger& bigint) const
@@ -284,7 +366,17 @@ public:
                 }
             }
         }
-        return memcmp(dataPtr, bigint.dataPtr, std::min(nBytes, bigint.nBytes)) <= 0;
+
+        // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
+        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+
+        for (int64_t i = bytes - 1; i >= 0; i--) {
+            if (dataPtr[i] > bigint.dataPtr[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     bool operator==(const uint64_t& num) const
@@ -296,6 +388,7 @@ public:
                 }
             }
         }
+
         return GetLow64() == num;
     }
 
@@ -308,6 +401,7 @@ public:
                 }
             }
         }
+
         return GetLow64() != num;
     }
 
@@ -320,6 +414,7 @@ public:
                 }
             }
         }
+
         return GetLow64() > num;
     }
 
@@ -332,6 +427,7 @@ public:
                 }
             }
         }
+
         return GetLow64() < num;
     }
 
@@ -344,6 +440,7 @@ public:
                 }
             }
         }
+
         return GetLow64() >= num;
     }
 
@@ -356,7 +453,48 @@ public:
                 }
             }
         }
+
         return GetLow64() <= num;
+    }
+
+    CBigInteger& AddWithoutResize(const CBigInteger& bigint)
+    {
+        uint32_t carry = 0;
+        for (uint32_t i = 0; i < nBytes; i++) {
+            uint32_t n;
+            if (i < bigint.nBytes) {
+                n = carry + dataPtr[i] + bigint.dataPtr[i];
+            } else {
+                if (!carry) {
+                    return *this;
+                }
+                n = carry + dataPtr[i];
+            }
+            dataPtr[i] = n & 0xff;
+            carry = n >> 8;
+        }
+
+        return *this;
+    }
+
+    CBigInteger& AddWithoutResize(const uint64_t& num)
+    {
+        uint32_t carry = 0;
+        for (uint32_t i = 0; i < nBytes; i++) {
+            uint32_t n;
+            if (i < sizeof(uint64_t)) {
+                n = carry + dataPtr[i] + ((uint8_t*)&num)[i];
+            } else {
+                if (!carry) {
+                    return *this;
+                }
+                n = carry + dataPtr[i];
+            }
+            dataPtr[i] = n & 0xff;
+            carry = n >> 8;
+        }
+
+        return *this;
     }
 
     bool IsInitialized() const
