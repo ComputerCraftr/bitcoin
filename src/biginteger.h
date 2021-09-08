@@ -161,6 +161,20 @@ public:
         }
     }
 
+    const CBigInteger operator+(const CBigInteger& bigint)
+    {
+        CBigInteger ret(*this);
+        ret += bigint;
+        return ret;
+    }
+
+    const CBigInteger operator-(const CBigInteger& bigint)
+    {
+        CBigInteger ret(*this);
+        ret -= bigint;
+        return ret;
+    }
+
     void operator=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
@@ -208,6 +222,59 @@ public:
         }
 
         ((uint64_t*)dataPtr)[0] |= num;
+    }
+
+    void operator+=(const uint64_t& num)
+    {
+        if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
+            nBytes = sizeof(uint64_t);
+        }
+
+        uint32_t carry = 0;
+        for (uint32_t i = 0; i < nBytes; i++) {
+            uint32_t n;
+            if (i < sizeof(uint64_t)) {
+                n = carry + dataPtr[i] + ((uint8_t*)&num)[i];
+            } else {
+                if (!carry) {
+                    return;
+                }
+                n = carry + dataPtr[i];
+            }
+            dataPtr[i] = n & 0xff;
+            carry = n >> 8;
+        }
+
+        if (carry) {
+            dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
+            dataPtr[nBytes] = carry & 0xff;
+            nBytes++;
+        }
+    }
+
+    void operator-=(const uint64_t& num)
+    {
+        if (*this <= num) {
+            memset(dataPtr, '\0', nBytes);
+        } else {
+            this->AddWithoutResize(~num + 1);
+        }
+    }
+
+    const CBigInteger operator+(const uint64_t& num)
+    {
+        CBigInteger ret(*this);
+        ret += num;
+        return ret;
+    }
+
+    const CBigInteger operator-(const uint64_t& num)
+    {
+        CBigInteger ret(*this);
+        ret -= num;
+        return ret;
     }
 
     const CBigInteger operator~() const
