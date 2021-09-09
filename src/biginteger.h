@@ -212,7 +212,9 @@ public:
 
     void operator&=(const uint64_t& num)
     {
-        if (nBytes < sizeof(uint64_t)) {
+        if (nBytes > sizeof(uint64_t)) {
+            memset(dataPtr + sizeof(uint64_t), '\0', nBytes - sizeof(uint64_t));
+        } else if (nBytes < sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
@@ -580,7 +582,7 @@ public:
         return *this;
     }
 
-    bool IsInitialized() const
+    inline bool IsInitialized() const
     {
         return dataPtr != nullptr && nBytes != 0;
     }
