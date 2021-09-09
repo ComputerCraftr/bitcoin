@@ -157,7 +157,15 @@ public:
         if (*this <= bigint) {
             memset(dataPtr, '\0', nBytes);
         } else {
-            this->AddWithoutResize(-bigint);
+            if (nBytes > bigint.nBytes) {
+                CBigInteger temp(nBytes, true);
+                if (bigint.IsInitialized() && temp.IsInitialized()) {
+                    memcpy(temp.dataPtr, bigint.dataPtr, bigint.nBytes);
+                    this->AddWithoutResize(-temp);
+                }
+            } else {
+                this->AddWithoutResize(-bigint);
+            }
         }
     }
 
@@ -259,7 +267,15 @@ public:
         if (*this <= num) {
             memset(dataPtr, '\0', nBytes);
         } else {
-            this->AddWithoutResize(~num + 1);
+            if (nBytes > sizeof(uint64_t)) {
+                CBigInteger temp(nBytes, true);
+                if (temp.IsInitialized()) {
+                    memcpy(temp.dataPtr, &num, sizeof(uint64_t));
+                    this->AddWithoutResize(-temp);
+                }
+            } else {
+                this->AddWithoutResize(~num + 1);
+            }
         }
     }
 
@@ -583,6 +599,10 @@ public:
 
     uint64_t GetLow64() const
     {
+        if (!IsInitialized()) {
+            return 0;
+        }
+
         uint64_t ret = 0;
         memcpy(&ret, dataPtr, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
         return ret;
@@ -590,6 +610,10 @@ public:
 
     uint64_t GetHigh64() const
     {
+        if (!IsInitialized()) {
+            return 0;
+        }
+
         const uint32_t bytesSkipped = std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t));
         uint64_t ret = 0;
         memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
@@ -598,6 +622,10 @@ public:
 
     uint64_t Get64(const uint32_t& offset) const
     {
+        if (!IsInitialized()) {
+            return 0;
+        }
+
         const uint32_t bytesSkipped = std::min(offset, (uint32_t)std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t)));
         uint64_t ret = 0;
         memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
