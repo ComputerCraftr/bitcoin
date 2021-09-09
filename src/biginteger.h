@@ -371,13 +371,19 @@ public:
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
         const uint32_t bytes = std::min(nBytes, bigint.nBytes);
 
+        bool fBytesNotEqual = true;
         for (int64_t i = bytes - 1; i >= 0; i--) {
-            if (dataPtr[i] < bigint.dataPtr[i]) {
-                return false;
+            if (dataPtr[i] != bigint.dataPtr[i]) {
+                if (dataPtr[i] < bigint.dataPtr[i]) {
+                    return false;
+                }
+                break;
+            } else if (i == 0) {
+                fBytesNotEqual = false;
             }
         }
 
-        return memcmp(dataPtr, bigint.dataPtr, bytes) != 0;
+        return fBytesNotEqual;
     }
 
     bool operator<(const CBigInteger& bigint) const
@@ -399,13 +405,19 @@ public:
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
         const uint32_t bytes = std::min(nBytes, bigint.nBytes);
 
+        bool fBytesNotEqual = true;
         for (int64_t i = bytes - 1; i >= 0; i--) {
-            if (dataPtr[i] > bigint.dataPtr[i]) {
-                return false;
+            if (dataPtr[i] != bigint.dataPtr[i]) {
+                if (dataPtr[i] > bigint.dataPtr[i]) {
+                    return false;
+                }
+                break;
+            } else if (i == 0) {
+                fBytesNotEqual = false;
             }
         }
 
-        return memcmp(dataPtr, bigint.dataPtr, bytes) != 0;
+        return fBytesNotEqual;
     }
 
     bool operator>=(const CBigInteger& bigint) const
@@ -428,8 +440,11 @@ public:
         const uint32_t bytes = std::min(nBytes, bigint.nBytes);
 
         for (int64_t i = bytes - 1; i >= 0; i--) {
-            if (dataPtr[i] < bigint.dataPtr[i]) {
-                return false;
+            if (dataPtr[i] != bigint.dataPtr[i]) {
+                if (dataPtr[i] < bigint.dataPtr[i]) {
+                    return false;
+                }
+                break;
             }
         }
 
@@ -456,8 +471,11 @@ public:
         const uint32_t bytes = std::min(nBytes, bigint.nBytes);
 
         for (int64_t i = bytes - 1; i >= 0; i--) {
-            if (dataPtr[i] > bigint.dataPtr[i]) {
-                return false;
+            if (dataPtr[i] != bigint.dataPtr[i]) {
+                if (dataPtr[i] > bigint.dataPtr[i]) {
+                    return false;
+                }
+                break;
             }
         }
 
