@@ -81,13 +81,13 @@ public:
     void operator^=(const CBigInteger& bigint)
     {
         uint32_t bytes;
-        if (nBytes < bigint.nBytes) {
+        if (nBytes >= bigint.nBytes) {
+            bytes = bigint.nBytes;
+        } else {
             dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
             bytes = nBytes;
-        } else {
-            bytes = bigint.nBytes;
         }
 
         for (uint32_t i = 0; i < bytes; i++) {
@@ -97,7 +97,13 @@ public:
 
     void operator&=(const CBigInteger& bigint)
     {
-        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+        uint32_t bytes;
+        if (nBytes > bigint.nBytes) {
+            memset(dataPtr + bigint.nBytes, '\0', nBytes - bigint.nBytes);
+            bytes = bigint.nBytes;
+        } else {
+            bytes = nBytes;
+        }
 
         for (uint32_t i = 0; i < bytes; i++) {
             dataPtr[i] &= bigint.dataPtr[i];
@@ -107,13 +113,13 @@ public:
     void operator|=(const CBigInteger& bigint)
     {
         uint32_t bytes;
-        if (nBytes < bigint.nBytes) {
+        if (nBytes >= bigint.nBytes) {
+            bytes = bigint.nBytes;
+        } else {
             dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
             bytes = nBytes;
-        } else {
-            bytes = bigint.nBytes;
         }
 
         for (uint32_t i = 0; i < bytes; i++) {
