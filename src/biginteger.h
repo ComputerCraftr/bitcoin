@@ -66,7 +66,9 @@ public:
     void operator=(const CBigInteger& bigint)
     {
         if (bigint.IsInitialized()) {
-            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            // free + malloc is faster than realloc for increasing size
+            free(dataPtr);
+            dataPtr = (uint8_t*)malloc(bigint.nBytes);
             nBytes = bigint.nBytes;
             if (IsInitialized()) {
                 memcpy(dataPtr, bigint.dataPtr, nBytes);
@@ -80,69 +82,53 @@ public:
 
     void operator^=(const CBigInteger& bigint)
     {
-        uint32_t bytes;
-        if (nBytes >= bigint.nBytes) {
-            bytes = bigint.nBytes;
-        } else {
+        if (nBytes < bigint.nBytes) {
             dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
-            bytes = nBytes;
         }
 
-        for (uint32_t i = 0; i < bytes; i++) {
+        for (uint32_t i = 0; i < bigint.nBytes; i++) {
             dataPtr[i] ^= bigint.dataPtr[i];
         }
     }
 
     void operator&=(const CBigInteger& bigint)
     {
-        uint32_t bytes;
         if (nBytes > bigint.nBytes) {
             memset(dataPtr + bigint.nBytes, '\0', nBytes - bigint.nBytes);
-            bytes = bigint.nBytes;
-        } else {
-            bytes = nBytes;
         }
 
-        for (uint32_t i = 0; i < bytes; i++) {
+        for (uint32_t i = 0; i < bigint.nBytes; i++) {
             dataPtr[i] &= bigint.dataPtr[i];
         }
     }
 
     void operator|=(const CBigInteger& bigint)
     {
-        uint32_t bytes;
-        if (nBytes >= bigint.nBytes) {
-            bytes = bigint.nBytes;
-        } else {
+        if (nBytes < bigint.nBytes) {
             dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
-            bytes = nBytes;
         }
 
-        for (uint32_t i = 0; i < bytes; i++) {
+        for (uint32_t i = 0; i < bigint.nBytes; i++) {
             dataPtr[i] |= bigint.dataPtr[i];
         }
     }
 
     void operator+=(const CBigInteger& bigint)
     {
-        uint32_t bytes;
         if (nBytes < bigint.nBytes) {
             dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
             memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
             nBytes = bigint.nBytes;
-            bytes = nBytes;
-        } else {
-            bytes = bigint.nBytes;
         }
 
         uint32_t carry = 0;
         for (uint32_t i = 0; i < nBytes; i++) {
             uint32_t n;
-            if (i < bytes) {
+            if (i < bigint.nBytes) {
                 n = carry + dataPtr[i] + bigint.dataPtr[i];
             } else {
                 n = carry + dataPtr[i];
@@ -172,7 +158,42 @@ public:
             } else {
                 this->AddWithoutResize(-bigint);
             }
+            this->TrimZeroBytes();
         }
+    }
+
+    void operator*=(const CBigInteger& bigint)
+    {
+        if (nBytes < bigint.nBytes) {
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
+            nBytes = bigint.nBytes;
+        }
+
+        // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
+        // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
+        uint32_t nBytesNew = nBytes + bigint.nBytes;
+        CBigInteger temp(nBytesNew, true);
+        if (temp.IsNull()) {
+            return;
+        }
+
+        for (uint32_t i = 0; i < nBytesNew; i++) {
+            uint32_t carry = 0;
+            for (uint32_t j = 0; j + i < nBytesNew; j++) {
+                uint32_t n;
+                if (i < nBytes && j < bigint.nBytes) {
+                    n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * bigint.dataPtr[j];
+                } else {
+                    n = carry + temp.dataPtr[i + j];
+                }
+                temp.dataPtr[i + j] = n & 0xff;
+                carry = n >> 8;
+            }
+        }
+
+        temp.TrimZeroBytes();
+        *this = temp;
     }
 
     const CBigInteger operator+(const CBigInteger& bigint) const
@@ -189,12 +210,21 @@ public:
         return ret;
     }
 
+    const CBigInteger operator*(const CBigInteger& bigint) const
+    {
+        CBigInteger ret(*this);
+        ret *= bigint;
+        return ret;
+    }
+
     void operator=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
             memset(dataPtr, '\0', nBytes);
         } else if (nBytes < sizeof(uint64_t)) {
-            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            // free + malloc is faster than realloc for increasing size
+            free(dataPtr);
+            dataPtr = (uint8_t*)malloc(sizeof(uint64_t));
             nBytes = sizeof(uint64_t);
         }
 
@@ -284,7 +314,42 @@ public:
             } else {
                 this->AddWithoutResize(~num + 1);
             }
+            this->TrimZeroBytes();
         }
+    }
+
+    void operator*=(const uint64_t& num)
+    {
+        if (nBytes < sizeof(uint64_t)) {
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
+            nBytes = sizeof(uint64_t);
+        }
+
+        // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
+        // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
+        uint32_t nBytesNew = nBytes + sizeof(uint64_t);
+        CBigInteger temp(nBytesNew, true);
+        if (temp.IsNull()) {
+            return;
+        }
+
+        for (uint32_t i = 0; i < nBytesNew; i++) {
+            uint32_t carry = 0;
+            for (uint32_t j = 0; j + i < nBytesNew; j++) {
+                uint32_t n;
+                if (i < nBytes && j < sizeof(uint64_t)) {
+                    n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * ((uint8_t*)&num)[j];
+                } else {
+                    n = carry + temp.dataPtr[i + j];
+                }
+                temp.dataPtr[i + j] = n & 0xff;
+                carry = n >> 8;
+            }
+        }
+
+        temp.TrimZeroBytes();
+        *this = temp;
     }
 
     const CBigInteger operator+(const uint64_t& num) const
@@ -298,6 +363,13 @@ public:
     {
         CBigInteger ret(*this);
         ret -= num;
+        return ret;
+    }
+
+    const CBigInteger operator*(const uint64_t& num) const
+    {
+        CBigInteger ret(*this);
+        ret *= num;
         return ret;
     }
 
@@ -626,6 +698,12 @@ public:
         return *this;
     }
 
+    CBigInteger& Multiply(const CBigInteger& bigint)
+    {
+        *this *= bigint;
+        return *this;
+    }
+
     CBigInteger& BitwiseXor(const uint64_t& num)
     {
         *this ^= num;
@@ -653,6 +731,12 @@ public:
     CBigInteger& Subtract(const uint64_t& num)
     {
         *this -= num;
+        return *this;
+    }
+
+    CBigInteger& Multiply(const uint64_t& num)
+    {
+        *this *= num;
         return *this;
     }
 
@@ -748,7 +832,7 @@ public:
         if (*this >= num) {
             return *this;
         } else {
-            return num;
+            return num; // CBigInteger constructor for uint64_t called here
         }
     }
 
@@ -757,7 +841,7 @@ public:
         if (*this <= num) {
             return *this;
         } else {
-            return num;
+            return num; // CBigInteger constructor for uint64_t called here
         }
     }
 
@@ -816,6 +900,21 @@ public:
         uint64_t ret = 0;
         memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
         return ret;
+    }
+
+    void TrimZeroBytes()
+    {
+        for (int64_t i = nBytes - 1; i >= 0; i--) {
+            if (dataPtr[i]) {
+                const uint32_t nActualBytes = i + 1;
+                if (nBytes == nActualBytes) {
+                    return;
+                }
+                dataPtr = (uint8_t*)realloc(dataPtr, nActualBytes);
+                nBytes = nActualBytes;
+                return;
+            }
+        }
     }
 
     std::string GetHexBE() const
