@@ -95,11 +95,15 @@ public:
 
     void operator&=(const CBigInteger& bigint)
     {
+        uint32_t bytes;
         if (nBytes > bigint.nBytes) {
             memset(dataPtr + bigint.nBytes, '\0', nBytes - bigint.nBytes);
+            bytes = bigint.nBytes;
+        } else {
+            bytes = nBytes;
         }
 
-        for (uint32_t i = 0; i < bigint.nBytes; i++) {
+        for (uint32_t i = 0; i < bytes; i++) {
             dataPtr[i] &= bigint.dataPtr[i];
         }
     }
