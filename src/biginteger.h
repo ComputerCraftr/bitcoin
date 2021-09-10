@@ -28,7 +28,7 @@ public:
         } else {
             dataPtr = (uint8_t*)malloc(nBytes);
         }
-        if (!IsInitialized()) {
+        if (IsNull()) {
             nBytes = 0;
         }
     }
@@ -175,14 +175,14 @@ public:
         }
     }
 
-    const CBigInteger operator+(const CBigInteger& bigint)
+    const CBigInteger operator+(const CBigInteger& bigint) const
     {
         CBigInteger ret(*this);
         ret += bigint;
         return ret;
     }
 
-    const CBigInteger operator-(const CBigInteger& bigint)
+    const CBigInteger operator-(const CBigInteger& bigint) const
     {
         CBigInteger ret(*this);
         ret -= bigint;
@@ -287,14 +287,14 @@ public:
         }
     }
 
-    const CBigInteger operator+(const uint64_t& num)
+    const CBigInteger operator+(const uint64_t& num) const
     {
         CBigInteger ret(*this);
         ret += num;
         return ret;
     }
 
-    const CBigInteger operator-(const uint64_t& num)
+    const CBigInteger operator-(const uint64_t& num) const
     {
         CBigInteger ret(*this);
         ret -= num;
@@ -317,6 +317,36 @@ public:
             ret.dataPtr[i] = ~ret.dataPtr[i];
         }
         ret.AddWithoutResize(1);
+        return ret;
+    }
+
+    CBigInteger& operator++()
+    {
+        // prefix operator
+        *this += 1;
+        return *this;
+    }
+
+    const CBigInteger operator++(int)
+    {
+        // postfix operator
+        const CBigInteger ret(*this);
+        *this += 1;
+        return ret;
+    }
+
+    CBigInteger& operator--()
+    {
+        // prefix operator
+        *this -= 1;
+        return *this;
+    }
+
+    const CBigInteger operator--(int)
+    {
+        // postfix operator
+        const CBigInteger ret(*this);
+        *this -= 1;
         return ret;
     }
 
@@ -566,6 +596,95 @@ public:
         return GetLow64() <= num;
     }
 
+    CBigInteger& BitwiseXor(const CBigInteger& bigint)
+    {
+        *this ^= bigint;
+        return *this;
+    }
+
+    CBigInteger& BitwiseAnd(const CBigInteger& bigint)
+    {
+        *this &= bigint;
+        return *this;
+    }
+
+    CBigInteger& BitwiseOr(const CBigInteger& bigint)
+    {
+        *this |= bigint;
+        return *this;
+    }
+
+    CBigInteger& Add(const CBigInteger& bigint)
+    {
+        *this += bigint;
+        return *this;
+    }
+
+    CBigInteger& Subtract(const CBigInteger& bigint)
+    {
+        *this -= bigint;
+        return *this;
+    }
+
+    CBigInteger& BitwiseXor(const uint64_t& num)
+    {
+        *this ^= num;
+        return *this;
+    }
+
+    CBigInteger& BitwiseAnd(const uint64_t& num)
+    {
+        *this &= num;
+        return *this;
+    }
+
+    CBigInteger& BitwiseOr(const uint64_t& num)
+    {
+        *this |= num;
+        return *this;
+    }
+
+    CBigInteger& Add(const uint64_t& num)
+    {
+        *this += num;
+        return *this;
+    }
+
+    CBigInteger& Subtract(const uint64_t& num)
+    {
+        *this -= num;
+        return *this;
+    }
+
+    CBigInteger& BitwiseInverse()
+    {
+        for (uint32_t i = 0; i < nBytes; i++) {
+            dataPtr[i] = ~dataPtr[i];
+        }
+        return *this;
+    }
+
+    CBigInteger& Negate()
+    {
+        for (uint32_t i = 0; i < nBytes; i++) {
+            dataPtr[i] = ~dataPtr[i];
+        }
+        this->AddWithoutResize(1);
+        return *this;
+    }
+
+    CBigInteger& Increment()
+    {
+        *this += 1;
+        return *this;
+    }
+
+    CBigInteger& Decrement()
+    {
+        *this -= 1;
+        return *this;
+    }
+
     CBigInteger& AddWithoutResize(const CBigInteger& bigint)
     {
         uint32_t carry = 0;
@@ -606,12 +725,53 @@ public:
         return *this;
     }
 
+    const CBigInteger Max(const CBigInteger& bigint) const
+    {
+        if (*this >= bigint) {
+            return *this;
+        } else {
+            return bigint;
+        }
+    }
+
+    const CBigInteger Min(const CBigInteger& bigint) const
+    {
+        if (*this <= bigint) {
+            return *this;
+        } else {
+            return bigint;
+        }
+    }
+
+    const CBigInteger Max(const uint64_t& num) const
+    {
+        if (*this >= num) {
+            return *this;
+        } else {
+            return num;
+        }
+    }
+
+    const CBigInteger Min(const uint64_t& num) const
+    {
+        if (*this <= num) {
+            return *this;
+        } else {
+            return num;
+        }
+    }
+
     inline bool IsInitialized() const
     {
         return dataPtr != nullptr && nBytes != 0;
     }
 
-    void SetNull()
+    inline bool IsNull() const
+    {
+        return dataPtr == nullptr || nBytes == 0;
+    }
+
+    inline void SetNull()
     {
         free(dataPtr);
         dataPtr = nullptr;
@@ -625,7 +785,7 @@ public:
 
     uint64_t GetLow64() const
     {
-        if (!IsInitialized()) {
+        if (IsNull()) {
             return 0;
         }
 
@@ -636,7 +796,7 @@ public:
 
     uint64_t GetHigh64() const
     {
-        if (!IsInitialized()) {
+        if (IsNull()) {
             return 0;
         }
 
@@ -648,7 +808,7 @@ public:
 
     uint64_t Get64(const uint32_t& offset) const
     {
-        if (!IsInitialized()) {
+        if (IsNull()) {
             return 0;
         }
 
