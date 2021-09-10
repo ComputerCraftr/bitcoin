@@ -769,6 +769,30 @@ public:
         return *this;
     }
 
+    CBigInteger& Pow(uint32_t exp)
+    {
+        if (*this <= 1 || exp == 1) {
+            return *this;
+        }
+        CBigInteger base(*this);
+        *this = 1;
+
+        if (!exp) {
+            return *this;
+        }
+
+        while (true) {
+            if (exp & 1) {
+                *this *= base;
+            }
+            exp >>= 1;
+            if (!exp) {
+                return *this;
+            }
+            base *= base;
+        }
+    }
+
     CBigInteger& AddWithoutResize(const CBigInteger& bigint)
     {
         uint32_t carry = 0;
