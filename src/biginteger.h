@@ -28,7 +28,7 @@ public:
         } else {
             dataPtr = (uint8_t*)malloc(nBytes);
         }
-        if (IsNull()) {
+        if (!IsInitialized()) {
             nBytes = 0;
         }
     }
@@ -135,12 +135,16 @@ public:
             if (i < bigint.nBytes) {
                 n = carry + dataPtr[i] + bigint.dataPtr[i];
             } else {
+                if (!carry) {
+                    return;
+                }
                 n = carry + dataPtr[i];
             }
             dataPtr[i] = n & 0xff;
             carry = n >> 8;
         }
 
+        // We allocate an extra byte of memory here to hold the result in case overflow would otherwise occur
         if (carry) {
             dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
             dataPtr[nBytes] = carry & 0xff;
@@ -168,17 +172,11 @@ public:
 
     void operator*=(const CBigInteger& bigint)
     {
-        if (nBytes < bigint.nBytes) {
-            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
-            memset(dataPtr + nBytes, '\0', bigint.nBytes - nBytes);
-            nBytes = bigint.nBytes;
-        }
-
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
         uint32_t nBytesNew = nBytes + bigint.nBytes;
         CBigInteger temp(nBytesNew, true);
-        if (temp.IsNull()) {
+        if (!temp.IsInitialized()) {
             return;
         }
 
@@ -297,6 +295,7 @@ public:
             carry = n >> 8;
         }
 
+        // We allocate an extra byte of memory here to hold the result in case overflow would otherwise occur
         if (carry) {
             dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
             dataPtr[nBytes] = carry & 0xff;
@@ -324,17 +323,11 @@ public:
 
     void operator*=(const uint64_t& num)
     {
-        if (nBytes < sizeof(uint64_t)) {
-            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
-            memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
-            nBytes = sizeof(uint64_t);
-        }
-
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
         uint32_t nBytesNew = nBytes + sizeof(uint64_t);
         CBigInteger temp(nBytesNew, true);
-        if (temp.IsNull()) {
+        if (!temp.IsInitialized()) {
             return;
         }
 
@@ -860,7 +853,8 @@ public:
         if (*this >= num) {
             return *this;
         } else {
-            return num; // CBigInteger constructor for uint64_t called here
+            // CBigInteger constructor for uint64_t called here
+            return num;
         }
     }
 
@@ -869,7 +863,8 @@ public:
         if (*this <= num) {
             return *this;
         } else {
-            return num; // CBigInteger constructor for uint64_t called here
+            // CBigInteger constructor for uint64_t called here
+            return num;
         }
     }
 
@@ -897,7 +892,7 @@ public:
 
     uint64_t GetLow64() const
     {
-        if (IsNull()) {
+        if (!IsInitialized()) {
             return 0;
         }
 
@@ -908,7 +903,7 @@ public:
 
     uint64_t GetHigh64() const
     {
-        if (IsNull()) {
+        if (!IsInitialized()) {
             return 0;
         }
 
@@ -920,7 +915,7 @@ public:
 
     uint64_t Get64(const uint32_t& offset) const
     {
-        if (IsNull()) {
+        if (!IsInitialized()) {
             return 0;
         }
 
