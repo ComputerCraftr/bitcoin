@@ -420,6 +420,69 @@ public:
         return ret;
     }
 
+    void operator<<=(const uint32_t& shift)
+    {
+        if (!shift) {
+            return;
+        }
+
+        const uint32_t nBytesToShift = shift / 8;
+        const uint32_t nBitsToShift = shift % 8;
+        const uint32_t nNonzeroBytes = NonzeroBytes();
+        const uint32_t nBytesToAllocate = nNonzeroBytes + nBytesToShift + (nBitsToShift ? 1 : 0);
+
+        // Note it isn't necessary to use memset here because all of the newly allocated memory is initialized below
+        dataPtr = (uint8_t*)realloc(dataPtr, nBytesToAllocate);
+        nBytes = nBytesToAllocate;
+
+        if (nBitsToShift) {
+            dataPtr[nBytesToAllocate - 1] = 0;
+            for (int64_t i = nNonzeroBytes - 1; i >= 0; i--) {
+                if (dataPtr[i]) {
+                    dataPtr[i + nBytesToShift] = ((uint32_t)dataPtr[i] << nBitsToShift) & 0xff;
+                    dataPtr[i + nBytesToShift + 1] |= dataPtr[i] >> (8 - nBitsToShift);
+                    dataPtr[i] = 0;
+                } else {
+                    dataPtr[i + nBytesToShift] = 0;
+                }
+            }
+        } else {
+            for (int64_t i = nNonzeroBytes - 1; i >= 0; i--) {
+                dataPtr[i + nBytesToShift] = dataPtr[i];
+                dataPtr[i] = 0;
+            }
+        }
+    }
+
+    void operator>>=(const uint32_t& shift)
+    {
+        if (!shift) {
+            return;
+        }
+
+        const uint32_t nBytesToShift = shift / 8;
+        const uint32_t nBitsToShift = shift % 8;
+
+        if (nBitsToShift) {
+            for (uint32_t i = nBytesToShift; i < nBytes; i++) {
+                if (dataPtr[i]) {
+                    dataPtr[i - nBytesToShift] = dataPtr[i] >> nBitsToShift;
+                    if (i > nBytesToShift) {
+                        dataPtr[i - nBytesToShift - 1] |= ((uint32_t)dataPtr[i] << (8 - nBitsToShift)) & 0xff;
+                    }
+                    dataPtr[i] = 0;
+                } else {
+                    dataPtr[i - nBytesToShift] = 0;
+                }
+            }
+        } else {
+            for (uint32_t i = nBytesToShift; i < nBytes; i++) {
+                dataPtr[i - nBytesToShift] = dataPtr[i];
+                dataPtr[i] = 0;
+            }
+        }
+    }
+
     CBigInteger& operator++()
     {
         // prefix operator
