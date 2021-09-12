@@ -23,21 +23,25 @@ public:
     CBigInteger(const uint32_t& bytes, const bool zero)
     {
         nBytes = bytes;
+
         if (zero) {
             dataPtr = (uint8_t*)calloc(nBytes, 1);
         } else {
             dataPtr = (uint8_t*)malloc(nBytes);
         }
+
         if (!IsInitialized()) {
             nBytes = 0;
         }
     }
 
+    // Copy constructor
     CBigInteger(const CBigInteger& bigint)
     {
         if (bigint.IsInitialized()) {
             nBytes = bigint.nBytes;
             dataPtr = (uint8_t*)malloc(nBytes);
+
             if (IsInitialized()) {
                 memcpy(dataPtr, bigint.dataPtr, nBytes);
             } else {
@@ -46,30 +50,44 @@ public:
         }
     }
 
+    // Move constructor
+    CBigInteger(CBigInteger&& bigint)
+    {
+        dataPtr = bigint.dataPtr;
+        nBytes = bigint.nBytes;
+
+        bigint.dataPtr = nullptr;
+        bigint.nBytes = 0;
+    }
+
     CBigInteger(const uint64_t& num)
     {
         nBytes = sizeof(uint64_t);
         dataPtr = (uint8_t*)malloc(sizeof(uint64_t));
+
         if (IsInitialized()) {
             memcpy(dataPtr, &num, sizeof(uint64_t));
         } else {
             nBytes = 0;
         }
-
     }
 
+    // Destructor
     ~CBigInteger()
     {
         free(dataPtr);
     }
 
+    // Copy assignment operator
     void operator=(const CBigInteger& bigint)
     {
         if (bigint.IsInitialized()) {
             // free + malloc is faster than realloc for increasing size
             free(dataPtr);
+
             dataPtr = (uint8_t*)malloc(bigint.nBytes);
             nBytes = bigint.nBytes;
+
             if (IsInitialized()) {
                 memcpy(dataPtr, bigint.dataPtr, nBytes);
             } else {
@@ -77,6 +95,20 @@ public:
             }
         } else {
             SetNull();
+        }
+    }
+
+    // Move assignment operator
+    void operator=(CBigInteger&& bigint)
+    {
+        if (this != &bigint) {
+            free(dataPtr);
+
+            dataPtr = bigint.dataPtr;
+            nBytes = bigint.nBytes;
+
+            bigint.dataPtr = nullptr;
+            bigint.nBytes = 0;
         }
     }
 
@@ -95,15 +127,12 @@ public:
 
     void operator&=(const CBigInteger& bigint)
     {
-        uint32_t bytes;
         if (nBytes > bigint.nBytes) {
-            memset(dataPtr + bigint.nBytes, '\0', nBytes - bigint.nBytes);
-            bytes = bigint.nBytes;
-        } else {
-            bytes = nBytes;
+            dataPtr = (uint8_t*)realloc(dataPtr, bigint.nBytes);
+            nBytes = bigint.nBytes;
         }
 
-        for (uint32_t i = 0; i < bytes; i++) {
+        for (uint32_t i = 0; i < nBytes; i++) {
             dataPtr[i] &= bigint.dataPtr[i];
         }
     }
@@ -161,12 +190,12 @@ public:
                 CBigInteger temp(nBytes, true);
                 if (bigint.IsInitialized() && temp.IsInitialized()) {
                     memcpy(temp.dataPtr, bigint.dataPtr, bigint.nBytes);
-                    this->AddWithoutResize(-temp);
+                    AddWithoutResize(-temp);
                 }
             } else {
-                this->AddWithoutResize(-bigint);
+                AddWithoutResize(-bigint);
             }
-            this->TrimZeroBytes();
+            TrimZeroBytes();
         }
     }
 
@@ -195,7 +224,7 @@ public:
         }
 
         temp.TrimZeroBytes();
-        *this = temp;
+        *this = std::move(temp);
     }
 
     const CBigInteger operator+(const CBigInteger& bigint) const
@@ -226,6 +255,7 @@ public:
         } else if (nBytes < sizeof(uint64_t)) {
             // free + malloc is faster than realloc for increasing size
             free(dataPtr);
+
             dataPtr = (uint8_t*)malloc(sizeof(uint64_t));
             nBytes = sizeof(uint64_t);
         }
@@ -251,7 +281,8 @@ public:
     void operator&=(const uint64_t& num)
     {
         if (nBytes > sizeof(uint64_t)) {
-            memset(dataPtr + sizeof(uint64_t), '\0', nBytes - sizeof(uint64_t));
+            dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
+            nBytes = sizeof(uint64_t);
         } else if (nBytes < sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
@@ -312,12 +343,12 @@ public:
                 CBigInteger temp(nBytes, true);
                 if (temp.IsInitialized()) {
                     memcpy(temp.dataPtr, &num, sizeof(uint64_t));
-                    this->AddWithoutResize(-temp);
+                    AddWithoutResize(-temp);
                 }
             } else {
-                this->AddWithoutResize(~num + 1);
+                AddWithoutResize(~num + 1);
             }
-            this->TrimZeroBytes();
+            TrimZeroBytes();
         }
     }
 
@@ -346,7 +377,7 @@ public:
         }
 
         temp.TrimZeroBytes();
-        *this = temp;
+        *this = std::move(temp);
     }
 
     const CBigInteger operator+(const uint64_t& num) const
@@ -750,7 +781,7 @@ public:
         for (uint32_t i = 0; i < nBytes; i++) {
             dataPtr[i] = ~dataPtr[i];
         }
-        this->AddWithoutResize(1);
+        AddWithoutResize(1);
         return *this;
     }
 
@@ -928,7 +959,7 @@ public:
     void TrimZeroBytes()
     {
         for (int64_t i = nBytes - 1; i >= 0; i--) {
-            if (dataPtr[i]) {
+            if (dataPtr[i] || i == 0) {
                 const uint32_t nActualBytes = i + 1;
                 if (nBytes == nActualBytes) {
                     return;
@@ -975,6 +1006,17 @@ public:
     uint32_t LengthBits() const
     {
         return nBytes * 8;
+    }
+
+    uint32_t NonzeroBytes() const
+    {
+        for (int64_t i = nBytes - 1; i >= 0; i--) {
+            if (dataPtr[i]) {
+                const uint32_t nActualBytes = i + 1;
+                return nActualBytes;
+            }
+        }
+        return 0;
     }
 
     const uint8_t* begin() const
