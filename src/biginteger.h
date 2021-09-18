@@ -216,6 +216,9 @@ public:
                 if (i < nBytes && j < bigint.nBytes) {
                     n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * bigint.dataPtr[j];
                 } else {
+                    if (!carry) {
+                        break;
+                    }
                     n = carry + temp.dataPtr[i + j];
                 }
                 temp.dataPtr[i + j] = n & 0xff;
@@ -369,6 +372,9 @@ public:
                 if (i < nBytes && j < sizeof(uint64_t)) {
                     n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * ((uint8_t*)&num)[j];
                 } else {
+                    if (!carry) {
+                        break;
+                    }
                     n = carry + temp.dataPtr[i + j];
                 }
                 temp.dataPtr[i + j] = n & 0xff;
@@ -467,7 +473,7 @@ public:
             for (uint32_t i = nBytesToShift; i < nBytes; i++) {
                 if (dataPtr[i]) {
                     dataPtr[i - nBytesToShift] = dataPtr[i] >> nBitsToShift;
-                    if (i > nBytesToShift) {
+                    if (i != nBytesToShift) {
                         dataPtr[i - nBytesToShift - 1] |= ((uint32_t)dataPtr[i] << (8 - nBitsToShift)) & 0xff;
                     }
                     dataPtr[i] = 0;
@@ -924,7 +930,7 @@ public:
         return *this;
     }
 
-    const CBigInteger Max(const CBigInteger& bigint) const
+    const CBigInteger& Max(const CBigInteger& bigint) const
     {
         if (*this >= bigint) {
             return *this;
@@ -933,7 +939,7 @@ public:
         }
     }
 
-    const CBigInteger Min(const CBigInteger& bigint) const
+    const CBigInteger& Min(const CBigInteger& bigint) const
     {
         if (*this <= bigint) {
             return *this;
