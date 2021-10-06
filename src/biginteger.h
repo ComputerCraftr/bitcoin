@@ -174,7 +174,7 @@ public:
         }
 
         // We allocate an extra byte of memory here to hold the result in case overflow would otherwise occur
-        if (carry) {
+        if (carry && nBytes != 2147483647) {
             dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
             dataPtr[nBytes] = carry & 0xff;
             nBytes++;
@@ -203,7 +203,7 @@ public:
     {
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
-        const int32_t nBytesNew = std::min(nBytes + bigint.nBytes, 2147483647);
+        const int32_t nBytesNew = std::min(nBytes + (uint32_t)bigint.nBytes, 2147483647u);
         CBigInteger temp(nBytesNew, true);
         if (!temp.IsInitialized()) {
             return;
@@ -330,7 +330,7 @@ public:
         }
 
         // We allocate an extra byte of memory here to hold the result in case overflow would otherwise occur
-        if (carry) {
+        if (carry && nBytes != 2147483647) {
             dataPtr = (uint8_t*)realloc(dataPtr, nBytes + 1);
             dataPtr[nBytes] = carry & 0xff;
             nBytes++;
@@ -359,7 +359,7 @@ public:
     {
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
-        const int32_t nBytesNew = std::min(nBytes + (int32_t)sizeof(uint64_t), 2147483647);
+        const int32_t nBytesNew = std::min(nBytes + (uint32_t)sizeof(uint64_t), 2147483647u);
         CBigInteger temp(nBytesNew, true);
         if (!temp.IsInitialized()) {
             return;
@@ -433,9 +433,9 @@ public:
         }
 
         const int32_t nBytesToShift = shift / 8;
-        const int32_t nBitsToShift = shift % 8;
-        const int32_t nNonzeroBytes = NonzeroBytes();
-        const int32_t nBytesToAllocate = nNonzeroBytes + nBytesToShift + (nBitsToShift ? 1 : 0);
+        const uint32_t nBitsToShift = shift % 8;
+        const uint32_t nNonzeroBytes = NonzeroBytes();
+        const int32_t nBytesToAllocate = std::min(nNonzeroBytes + nBytesToShift + (nBitsToShift ? 1 : 0), 2147483647u);
 
         // Note it isn't necessary to use memset here because all of the newly allocated memory is initialized below
         dataPtr = (uint8_t*)realloc(dataPtr, nBytesToAllocate);
@@ -467,7 +467,7 @@ public:
         }
 
         const int32_t nBytesToShift = shift / 8;
-        const int32_t nBitsToShift = shift % 8;
+        const uint32_t nBitsToShift = shift % 8;
 
         if (nBitsToShift) {
             for (int32_t i = nBytesToShift; i < nBytes; i++) {
