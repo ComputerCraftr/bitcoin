@@ -17,12 +17,12 @@ class CBigInteger
 {
 private:
     uint8_t* dataPtr = nullptr;
-    uint32_t nBytes = 0;
+    int32_t nBytes = 0;
 
 public:
     CBigInteger(const uint32_t& bytes, const bool zero)
     {
-        nBytes = bytes;
+        nBytes = std::min(bytes, 2147483647u);
 
         if (zero) {
             dataPtr = (uint8_t*)calloc(nBytes, 1);
@@ -120,7 +120,7 @@ public:
             nBytes = bigint.nBytes;
         }
 
-        for (uint32_t i = 0; i < bigint.nBytes; i++) {
+        for (int32_t i = 0; i < bigint.nBytes; i++) {
             dataPtr[i] ^= bigint.dataPtr[i];
         }
     }
@@ -132,7 +132,7 @@ public:
             nBytes = bigint.nBytes;
         }
 
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             dataPtr[i] &= bigint.dataPtr[i];
         }
     }
@@ -145,7 +145,7 @@ public:
             nBytes = bigint.nBytes;
         }
 
-        for (uint32_t i = 0; i < bigint.nBytes; i++) {
+        for (int32_t i = 0; i < bigint.nBytes; i++) {
             dataPtr[i] |= bigint.dataPtr[i];
         }
     }
@@ -159,7 +159,7 @@ public:
         }
 
         uint32_t carry = 0;
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             uint32_t n;
             if (i < bigint.nBytes) {
                 n = carry + dataPtr[i] + bigint.dataPtr[i];
@@ -203,15 +203,15 @@ public:
     {
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
-        uint32_t nBytesNew = nBytes + bigint.nBytes;
+        const int32_t nBytesNew = std::min(nBytes + bigint.nBytes, 2147483647);
         CBigInteger temp(nBytesNew, true);
         if (!temp.IsInitialized()) {
             return;
         }
 
-        for (uint32_t i = 0; i < nBytesNew; i++) {
+        for (int32_t i = 0; i < nBytesNew; i++) {
             uint32_t carry = 0;
-            for (uint32_t j = 0; j + i < nBytesNew; j++) {
+            for (int32_t j = 0; j + i < nBytesNew; j++) {
                 uint32_t n;
                 if (i < nBytes && j < bigint.nBytes) {
                     n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * bigint.dataPtr[j];
@@ -253,9 +253,9 @@ public:
 
     void operator=(const uint64_t& num)
     {
-        if (nBytes > sizeof(uint64_t)) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
             memset(dataPtr, '\0', nBytes);
-        } else if (nBytes < sizeof(uint64_t)) {
+        } else if (nBytes < (int32_t)sizeof(uint64_t)) {
             // free + malloc is faster than realloc for increasing size
             free(dataPtr);
 
@@ -272,7 +272,7 @@ public:
 
     void operator^=(const uint64_t& num)
     {
-        if (nBytes < sizeof(uint64_t)) {
+        if (nBytes < (int32_t)sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
@@ -283,10 +283,10 @@ public:
 
     void operator&=(const uint64_t& num)
     {
-        if (nBytes > sizeof(uint64_t)) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             nBytes = sizeof(uint64_t);
-        } else if (nBytes < sizeof(uint64_t)) {
+        } else if (nBytes < (int32_t)sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
@@ -297,7 +297,7 @@ public:
 
     void operator|=(const uint64_t& num)
     {
-        if (nBytes < sizeof(uint64_t)) {
+        if (nBytes < (int32_t)sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
@@ -308,16 +308,16 @@ public:
 
     void operator+=(const uint64_t& num)
     {
-        if (nBytes < sizeof(uint64_t)) {
+        if (nBytes < (int32_t)sizeof(uint64_t)) {
             dataPtr = (uint8_t*)realloc(dataPtr, sizeof(uint64_t));
             memset(dataPtr + nBytes, '\0', sizeof(uint64_t) - nBytes);
             nBytes = sizeof(uint64_t);
         }
 
         uint32_t carry = 0;
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             uint32_t n;
-            if (i < sizeof(uint64_t)) {
+            if (i < (int32_t)sizeof(uint64_t)) {
                 n = carry + dataPtr[i] + ((uint8_t*)&num)[i];
             } else {
                 if (!carry) {
@@ -342,7 +342,7 @@ public:
         if (*this <= num) {
             memset(dataPtr, '\0', nBytes);
         } else {
-            if (nBytes > sizeof(uint64_t)) {
+            if (nBytes > (int32_t)sizeof(uint64_t)) {
                 CBigInteger temp(nBytes, true);
                 if (temp.IsInitialized()) {
                     memcpy(temp.dataPtr, &num, sizeof(uint64_t));
@@ -359,17 +359,17 @@ public:
     {
         // The largest possible number that could be produced by multiplying two numbers with n digits has 2*n digits,
         // so we preallocate a CBigInteger here for this worst case scenario and trim it down later
-        uint32_t nBytesNew = nBytes + sizeof(uint64_t);
+        const int32_t nBytesNew = std::min(nBytes + (int32_t)sizeof(uint64_t), 2147483647);
         CBigInteger temp(nBytesNew, true);
         if (!temp.IsInitialized()) {
             return;
         }
 
-        for (uint32_t i = 0; i < nBytesNew; i++) {
+        for (int32_t i = 0; i < nBytesNew; i++) {
             uint32_t carry = 0;
-            for (uint32_t j = 0; j + i < nBytesNew; j++) {
+            for (int32_t j = 0; j + i < nBytesNew; j++) {
                 uint32_t n;
-                if (i < nBytes && j < sizeof(uint64_t)) {
+                if (i < nBytes && j < (int32_t)sizeof(uint64_t)) {
                     n = carry + temp.dataPtr[i + j] + (uint32_t)dataPtr[i] * ((uint8_t*)&num)[j];
                 } else {
                     if (!carry) {
@@ -410,7 +410,7 @@ public:
     const CBigInteger operator~() const
     {
         CBigInteger ret(*this);
-        for (uint32_t i = 0; i < ret.nBytes; i++) {
+        for (int32_t i = 0; i < ret.nBytes; i++) {
             ret.dataPtr[i] = ~ret.dataPtr[i];
         }
         return ret;
@@ -419,7 +419,7 @@ public:
     const CBigInteger operator-() const
     {
         CBigInteger ret(*this);
-        for (uint32_t i = 0; i < ret.nBytes; i++) {
+        for (int32_t i = 0; i < ret.nBytes; i++) {
             ret.dataPtr[i] = ~ret.dataPtr[i];
         }
         ret.AddWithoutResize(1);
@@ -432,10 +432,10 @@ public:
             return;
         }
 
-        const uint32_t nBytesToShift = shift / 8;
-        const uint32_t nBitsToShift = shift % 8;
-        const uint32_t nNonzeroBytes = NonzeroBytes();
-        const uint32_t nBytesToAllocate = nNonzeroBytes + nBytesToShift + (nBitsToShift ? 1 : 0);
+        const int32_t nBytesToShift = shift / 8;
+        const int32_t nBitsToShift = shift % 8;
+        const int32_t nNonzeroBytes = NonzeroBytes();
+        const int32_t nBytesToAllocate = nNonzeroBytes + nBytesToShift + (nBitsToShift ? 1 : 0);
 
         // Note it isn't necessary to use memset here because all of the newly allocated memory is initialized below
         dataPtr = (uint8_t*)realloc(dataPtr, nBytesToAllocate);
@@ -443,7 +443,7 @@ public:
 
         if (nBitsToShift) {
             dataPtr[nBytesToAllocate - 1] = 0;
-            for (int64_t i = nNonzeroBytes - 1; i >= 0; i--) {
+            for (int32_t i = nNonzeroBytes - 1; i >= 0; i--) {
                 if (dataPtr[i]) {
                     dataPtr[i + nBytesToShift] = ((uint32_t)dataPtr[i] << nBitsToShift) & 0xff;
                     dataPtr[i + nBytesToShift + 1] |= dataPtr[i] >> (8 - nBitsToShift);
@@ -453,7 +453,7 @@ public:
                 }
             }
         } else {
-            for (int64_t i = nNonzeroBytes - 1; i >= 0; i--) {
+            for (int32_t i = nNonzeroBytes - 1; i >= 0; i--) {
                 dataPtr[i + nBytesToShift] = dataPtr[i];
                 dataPtr[i] = 0;
             }
@@ -466,11 +466,11 @@ public:
             return;
         }
 
-        const uint32_t nBytesToShift = shift / 8;
-        const uint32_t nBitsToShift = shift % 8;
+        const int32_t nBytesToShift = shift / 8;
+        const int32_t nBitsToShift = shift % 8;
 
         if (nBitsToShift) {
-            for (uint32_t i = nBytesToShift; i < nBytes; i++) {
+            for (int32_t i = nBytesToShift; i < nBytes; i++) {
                 if (dataPtr[i]) {
                     dataPtr[i - nBytesToShift] = dataPtr[i] >> nBitsToShift;
                     if (i != nBytesToShift) {
@@ -482,7 +482,7 @@ public:
                 }
             }
         } else {
-            for (uint32_t i = nBytesToShift; i < nBytes; i++) {
+            for (int32_t i = nBytesToShift; i < nBytes; i++) {
                 dataPtr[i - nBytesToShift] = dataPtr[i];
                 dataPtr[i] = 0;
             }
@@ -522,13 +522,13 @@ public:
     bool operator==(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return false;
                 }
@@ -541,13 +541,13 @@ public:
     bool operator!=(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return true;
                 }
@@ -560,13 +560,13 @@ public:
     bool operator>(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return false;
                 }
@@ -574,10 +574,10 @@ public:
         }
 
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
-        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+        const int32_t bytes = std::min(nBytes, bigint.nBytes);
 
         bool fBytesNotEqual = true;
-        for (int64_t i = bytes - 1; i >= 0; i--) {
+        for (int32_t i = bytes - 1; i >= 0; i--) {
             if (dataPtr[i] != bigint.dataPtr[i]) {
                 if (dataPtr[i] < bigint.dataPtr[i]) {
                     return false;
@@ -594,13 +594,13 @@ public:
     bool operator<(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return true;
                 }
@@ -608,10 +608,10 @@ public:
         }
 
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
-        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+        const int32_t bytes = std::min(nBytes, bigint.nBytes);
 
         bool fBytesNotEqual = true;
-        for (int64_t i = bytes - 1; i >= 0; i--) {
+        for (int32_t i = bytes - 1; i >= 0; i--) {
             if (dataPtr[i] != bigint.dataPtr[i]) {
                 if (dataPtr[i] > bigint.dataPtr[i]) {
                     return false;
@@ -628,13 +628,13 @@ public:
     bool operator>=(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return false;
                 }
@@ -642,9 +642,9 @@ public:
         }
 
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
-        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+        const int32_t bytes = std::min(nBytes, bigint.nBytes);
 
-        for (int64_t i = bytes - 1; i >= 0; i--) {
+        for (int32_t i = bytes - 1; i >= 0; i--) {
             if (dataPtr[i] != bigint.dataPtr[i]) {
                 if (dataPtr[i] < bigint.dataPtr[i]) {
                     return false;
@@ -659,13 +659,13 @@ public:
     bool operator<=(const CBigInteger& bigint) const
     {
         if (nBytes > bigint.nBytes) {
-            for (uint32_t i = bigint.nBytes; i < nBytes; i++) {
+            for (int32_t i = bigint.nBytes; i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
             }
         } else if (nBytes < bigint.nBytes) {
-            for (uint32_t i = nBytes; i < bigint.nBytes; i++) {
+            for (int32_t i = nBytes; i < bigint.nBytes; i++) {
                 if (bigint.dataPtr[i] != 0) {
                     return true;
                 }
@@ -673,9 +673,9 @@ public:
         }
 
         // memcmp could be used here if the endianness of dataPtr was easily reversible to compare the largest bytes first
-        const uint32_t bytes = std::min(nBytes, bigint.nBytes);
+        const int32_t bytes = std::min(nBytes, bigint.nBytes);
 
-        for (int64_t i = bytes - 1; i >= 0; i--) {
+        for (int32_t i = bytes - 1; i >= 0; i--) {
             if (dataPtr[i] != bigint.dataPtr[i]) {
                 if (dataPtr[i] > bigint.dataPtr[i]) {
                     return false;
@@ -689,8 +689,8 @@ public:
 
     bool operator==(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
@@ -702,8 +702,8 @@ public:
 
     bool operator!=(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
@@ -715,8 +715,8 @@ public:
 
     bool operator>(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
@@ -728,8 +728,8 @@ public:
 
     bool operator<(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
@@ -741,8 +741,8 @@ public:
 
     bool operator>=(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return true;
                 }
@@ -754,8 +754,8 @@ public:
 
     bool operator<=(const uint64_t& num) const
     {
-        if (nBytes > sizeof(uint64_t)) {
-            for (uint32_t i = sizeof(uint64_t); i < nBytes; i++) {
+        if (nBytes > (int32_t)sizeof(uint64_t)) {
+            for (int32_t i = sizeof(uint64_t); i < nBytes; i++) {
                 if (dataPtr[i] != 0) {
                     return false;
                 }
@@ -839,7 +839,7 @@ public:
 
     CBigInteger& BitwiseInverse()
     {
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             dataPtr[i] = ~dataPtr[i];
         }
         return *this;
@@ -847,7 +847,7 @@ public:
 
     CBigInteger& Negate()
     {
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             dataPtr[i] = ~dataPtr[i];
         }
         AddWithoutResize(1);
@@ -893,7 +893,7 @@ public:
     CBigInteger& AddWithoutResize(const CBigInteger& bigint)
     {
         uint32_t carry = 0;
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             uint32_t n;
             if (i < bigint.nBytes) {
                 n = carry + dataPtr[i] + bigint.dataPtr[i];
@@ -913,9 +913,9 @@ public:
     CBigInteger& AddWithoutResize(const uint64_t& num)
     {
         uint32_t carry = 0;
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             uint32_t n;
-            if (i < sizeof(uint64_t)) {
+            if (i < (int32_t)sizeof(uint64_t)) {
                 n = carry + dataPtr[i] + ((uint8_t*)&num)[i];
             } else {
                 if (!carry) {
@@ -997,7 +997,7 @@ public:
         }
 
         uint64_t ret = 0;
-        memcpy(&ret, dataPtr, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        memcpy(&ret, dataPtr, std::min(nBytes, (int32_t)sizeof(uint64_t)));
         return ret;
     }
 
@@ -1007,9 +1007,9 @@ public:
             return 0;
         }
 
-        const uint32_t bytesSkipped = std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t));
+        const uint32_t bytesSkipped = std::max(0, nBytes - (int32_t)sizeof(uint64_t));
         uint64_t ret = 0;
-        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (int32_t)sizeof(uint64_t)));
         return ret;
     }
 
@@ -1019,17 +1019,17 @@ public:
             return 0;
         }
 
-        const uint32_t bytesSkipped = std::min(offset, (uint32_t)std::max(int64_t(0), nBytes - (int64_t)sizeof(uint64_t)));
+        const uint32_t bytesSkipped = std::min(offset, (uint32_t)std::max(0, nBytes - (int32_t)sizeof(uint64_t)));
         uint64_t ret = 0;
-        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (uint32_t)sizeof(uint64_t)));
+        memcpy(&ret, dataPtr + bytesSkipped, std::min(nBytes, (int32_t)sizeof(uint64_t)));
         return ret;
     }
 
     void TrimZeroBytes()
     {
-        for (int64_t i = nBytes - 1; i >= 0; i--) {
+        for (int32_t i = nBytes - 1; i >= 0; i--) {
             if (dataPtr[i] || i == 0) {
-                const uint32_t nActualBytes = i + 1;
+                const int32_t nActualBytes = i + 1;
                 if (nBytes == nActualBytes) {
                     return;
                 }
@@ -1044,7 +1044,7 @@ public:
     {
         std::string ret;
         ret.reserve(nBytes * 2);
-        for (int64_t i = nBytes - 1; i >= 0; i--) {
+        for (int32_t i = nBytes - 1; i >= 0; i--) {
             ret.push_back(HEX_CHARS[dataPtr[i] >> 4]);
             ret.push_back(HEX_CHARS[dataPtr[i] & 15]);
         }
@@ -1055,7 +1055,7 @@ public:
     {
         std::string ret;
         ret.reserve(nBytes * 2);
-        for (uint32_t i = 0; i < nBytes; i++) {
+        for (int32_t i = 0; i < nBytes; i++) {
             ret.push_back(HEX_CHARS[dataPtr[i] >> 4]);
             ret.push_back(HEX_CHARS[dataPtr[i] & 15]);
         }
@@ -1079,9 +1079,9 @@ public:
 
     uint32_t NonzeroBytes() const
     {
-        for (int64_t i = nBytes - 1; i >= 0; i--) {
+        for (int32_t i = nBytes - 1; i >= 0; i--) {
             if (dataPtr[i]) {
-                const uint32_t nActualBytes = i + 1;
+                const int32_t nActualBytes = i + 1;
                 return nActualBytes;
             }
         }
