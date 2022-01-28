@@ -114,6 +114,11 @@ void OptionsModel::Init(bool resetSettings)
         settings.setValue("bSpendZeroConfChange", true);
     if (!gArgs.SoftSetBoolArg("-spendzeroconfchange", settings.value("bSpendZeroConfChange").toBool()))
         addOverriddenOption("-spendzeroconfchange");
+
+    if (!settings.contains("bQuantumSafeStaking"))
+        settings.setValue("bQuantumSafeStaking", false);
+    if (!gArgs.SoftSetBoolArg("-quantumsafestaking", settings.value("bQuantumSafeStaking").toBool()))
+        addOverriddenOption("-quantumsafestaking");
 #endif
 
     // Network
@@ -304,6 +309,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
 #ifdef ENABLE_WALLET
         case SpendZeroConfChange:
             return settings.value("bSpendZeroConfChange");
+        case QuantumSafeStaking:
+            return settings.value("bQuantumSafeStaking");
 #endif
         case DisplayUnit:
             return nDisplayUnit;
@@ -345,7 +352,7 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
         case HideTrayIcon:
             fHideTrayIcon = value.toBool();
             settings.setValue("fHideTrayIcon", fHideTrayIcon);
-    		Q_EMIT hideTrayIconChanged(fHideTrayIcon);
+            Q_EMIT hideTrayIconChanged(fHideTrayIcon);
             break;
         case MinimizeToTray:
             fMinimizeToTray = value.toBool();
@@ -416,6 +423,12 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
         case SpendZeroConfChange:
             if (settings.value("bSpendZeroConfChange") != value) {
                 settings.setValue("bSpendZeroConfChange", value);
+                setRestartRequired(true);
+            }
+            break;
+        case QuantumSafeStaking:
+            if (settings.value("bQuantumSafeStaking") != value) {
+                settings.setValue("bQuantumSafeStaking", value);
                 setRestartRequired(true);
             }
             break;

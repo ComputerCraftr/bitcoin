@@ -604,6 +604,7 @@ void SetupServerArgs(NodeContext& node)
     argsman.AddArg("-printcreation", "Print coin creation if debug is enabled", ArgsManager::ALLOW_BOOL, OptionsCategory::DEBUG_TEST);
 
     argsman.AddArg("-staking", "Enable staking (default: true)", ArgsManager::ALLOW_BOOL, OptionsCategory::OPTIONS);
+    argsman.AddArg("-quantumsafestaking", "Enable quantum computer resistant staking which does not reuse addresses with exposed public keys (default: false)", ArgsManager::ALLOW_BOOL, OptionsCategory::OPTIONS);
 
     // Add the hidden options
     argsman.AddHiddenArgs(hidden_args);

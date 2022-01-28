@@ -633,7 +633,17 @@ bool CreateCoinStake(CMutableTransaction& coinstakeTx, CBlock* pblock, const std
                         }
                     }
 
-                    if (whichType == TxoutType::MULTISIG /*|| whichType == TxoutType::MULTISIG_REPLAY || whichType == TxoutType::MULTISIG_DATA || whichType == TxoutType::MULTISIG_DATA_REPLAY*/) { // try to create a new destination for p2sh/p2wsh-multisig inputs
+                    if (gArgs.GetBoolArg("-quantumsafestaking", false)) { // a new bech32 address is generated for every stake to protect the public key from quantum computers
+                        CTxDestination dest;
+                        std::string error;
+                        if (pwallet->GetNewStakingDestination(dest, error)) {
+                            LogPrintf("%s : using new destination for coinstake (%s)\n", __func__, EncodeDestination(dest));
+                            scriptPubKeyOut = GetScriptForDestination(dest);
+                        } else {
+                            LogPrintf("%s : failed to get new destination for coinstake (%s)\n", __func__, error);
+                            scriptPubKeyOut = scriptPubKeyKernel;
+                        }
+                    } else if (whichType == TxoutType::MULTISIG /*|| whichType == TxoutType::MULTISIG_REPLAY || whichType == TxoutType::MULTISIG_DATA || whichType == TxoutType::MULTISIG_DATA_REPLAY*/) { // try to create a new destination for p2sh/p2wsh-multisig inputs
                         CTxDestination dest;
                         std::string error;
                         if (pwallet->GetNewChangeDestination(OutputType::BECH32, dest, error)) {
