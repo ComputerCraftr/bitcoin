@@ -553,12 +553,15 @@ bool CreateCoinStake(CMutableTransaction& coinstakeTx, CBlock* pblock, const std
 {
     AssertLockHeld(pwallet->cs_wallet);
 
+    const int nTargetStakeInputs = gArgs.GetArg("-targetstakeinputs", DEFAULT_TARGET_STAKE_INPUTS);
+    constexpr CAmount nAutomaticInputSize = 2000000 * COIN;
     bool fKernelFound = false;
     std::set<CInputCoin> setCoins;
-    if (pwallet->SelectStakeCoins(setCoins)) {
+    if (pwallet->SelectStakeCoins(setCoins, false)) {
         while ((pblock->nTime & consensusParams.nStakeTimestampMask) != 0)
             pblock->nTime++;
 
+        const int nMatureInputs = setCoins.size();
         CAmount nCredit = 0;
         CScript scriptPubKeyKernel;
         for (const auto& pcoin : setCoins) {
@@ -694,6 +697,31 @@ bool CreateCoinStake(CMutableTransaction& coinstakeTx, CBlock* pblock, const std
 
                 coinstakeTx.vin.push_back(CTxIn(prevout.hash, prevout.n));
                 nCredit += pcoin.txout.nValue;
+                int nTotalInputs = 0;
+                if (nTargetStakeInputs >= 0) {
+                    bool fCombineAllInputs = false;
+                    if (nTargetStakeInputs > 0) {
+                        int nImmatureInputs = 0;
+                        std::set<CInputCoin> setImmatureCoins;
+                        if (pwallet->SelectStakeCoins(setImmatureCoins, true)) {
+                            nImmatureInputs = setImmatureCoins.size();
+                        }
+                        nTotalInputs = nMatureInputs + nImmatureInputs;
+                        fCombineAllInputs = nTotalInputs > nTargetStakeInputs;
+                    }
+
+                    bool fSecondInputAdded = false;
+                    for (const auto& pcoinInput : setCoins) {
+                        if (pcoinInput != pcoin) {
+                            if (fCombineAllInputs || (!fSecondInputAdded && pcoinInput.txout.nValue < pcoin.txout.nValue / 2) || (nTargetStakeInputs == 0 && (pcoinInput.txout.nValue < nAutomaticInputSize || pcoinInput.txout.nValue >= 2*nAutomaticInputSize))) {
+                                coinstakeTx.vin.push_back(CTxIn(pcoinInput.outpoint.hash, pcoinInput.outpoint.n));
+                                nCredit += pcoinInput.txout.nValue;
+                                fSecondInputAdded = true;
+                                //LogPrintf("%s : adding stake input %u\n", __func__, coinstakeTx.vin.size());
+                            }
+                        }
+                    }
+                }
                 coinstakeTx.vout.push_back(CTxOut(0, CScript()));
                 if (gArgs.GetBoolArg("-debug", false) && gArgs.GetBoolArg("-printcoinstake", false))
                     LogPrintf("%s : added kernel type=%s\n", __func__, GetTxnOutputType(whichType));
@@ -708,8 +736,31 @@ bool CreateCoinStake(CMutableTransaction& coinstakeTx, CBlock* pblock, const std
                     return error("%s : not creating mint with negative subsidy", __func__);
                 nCredit += nReward;
 
+                unsigned int outputs = 1;
+                if (nTargetStakeInputs > 0) {
+                    outputs = std::max(int(coinstakeTx.vin.size()) + nTargetStakeInputs - nTotalInputs, 1);
+                } else if (nTargetStakeInputs == 0) {
+                    outputs = std::max(nCredit / nAutomaticInputSize, static_cast<int64_t>(1));
+                }
+
                 // Fill outputs in coinstake
-                coinstakeTx.vout.push_back(CTxOut(nCredit, scriptPubKeyOut));
+                if (gArgs.GetBoolArg("-quantumsafestaking", false)) {
+                    coinstakeTx.vout.push_back(CTxOut(nCredit / outputs, scriptPubKeyOut)); // fill first output with new bech32 address generated above
+
+                    CTxDestination dest;
+                    std::string error;
+                    for (unsigned int i = 1; i < outputs; i++) {
+                        if (pwallet->GetNewStakingDestination(dest, error)) {
+                            coinstakeTx.vout.push_back(CTxOut(nCredit / outputs, GetScriptForDestination(dest)));
+                        } else {
+                            coinstakeTx.vout.push_back(CTxOut(nCredit / outputs, scriptPubKeyOut));
+                        }
+                    }
+                } else {
+                    for (unsigned int i = 0; i < outputs; i++) {
+                        coinstakeTx.vout.push_back(CTxOut(nCredit / outputs, scriptPubKeyOut));
+                    }
+                }
 
                 // Add treasury payment
                 FillTreasuryPayee(coinstakeTx, nHeight, consensusParams);

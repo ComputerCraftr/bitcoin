@@ -65,6 +65,7 @@ public:
         DatabaseCache,          // int
         SpendZeroConfChange,    // bool
         QuantumSafeStaking,     // bool
+        TargetStakeInputs,      // int
         Listen,                 // bool
         OptionIDRowCount,
     };

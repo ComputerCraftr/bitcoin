@@ -119,6 +119,11 @@ void OptionsModel::Init(bool resetSettings)
         settings.setValue("bQuantumSafeStaking", false);
     if (!gArgs.SoftSetBoolArg("-quantumsafestaking", settings.value("bQuantumSafeStaking").toBool()))
         addOverriddenOption("-quantumsafestaking");
+
+    if (!settings.contains("nTargetStakeInputs"))
+        settings.setValue("nTargetStakeInputs", int(0));
+    if (!gArgs.SoftSetArg("-targetstakeinputs", settings.value("nTargetStakeInputs").toString().toStdString()))
+        addOverriddenOption("-targetstakeinputs");
 #endif
 
     // Network
@@ -311,6 +316,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return settings.value("bSpendZeroConfChange");
         case QuantumSafeStaking:
             return settings.value("bQuantumSafeStaking");
+        case TargetStakeInputs:
+            return settings.value("nTargetStakeInputs");
 #endif
         case DisplayUnit:
             return nDisplayUnit;
@@ -429,6 +436,12 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
         case QuantumSafeStaking:
             if (settings.value("bQuantumSafeStaking") != value) {
                 settings.setValue("bQuantumSafeStaking", value);
+                setRestartRequired(true);
+            }
+            break;
+        case TargetStakeInputs:
+            if (settings.value("nTargetStakeInputs") != value) {
+                settings.setValue("nTargetStakeInputs", value.toInt());
                 setRestartRequired(true);
             }
             break;
