@@ -1629,9 +1629,9 @@ public:
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const override
     {
         return pindex->nHeight >= params.MinBIP9WarningHeight &&
-               ((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
+               ((pindex->nVersion & VERSIONBITS_TOP_MASK) != 0) &&
                ((pindex->nVersion >> bit) & 1) != 0 &&
-               ((g_versionbitscache.ComputeBlockVersion(pindex->pprev, params) >> bit) & 1) == 0;
+               ((g_versionbitscache.ComputeBlockVersion(pindex->pprev, CBlockHeader::GetAlgoType(pindex->nVersion), params) >> bit) & 1) == 0;
     }
 };
 
@@ -2240,8 +2240,8 @@ void CChainState::UpdateTip(const CBlockIndex* pindexNew)
             }
         }
     }
-    LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%f tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
-      pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
+    LogPrintf("%s: new best=%s height=%d version=0x%08x type=%i log2_work=%f tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
+      pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion, /*CBlockHeader::GetAlgoType(pindexNew->nVersion) == -1 ? pindexNew->IsProofOfWork() :*/ CBlockHeader::GetAlgoType(pindexNew->nVersion),
       log(pindexNew->nChainWork.getdouble())/log(2.0), (unsigned long)pindexNew->nChainTx,
       FormatISO8601DateTime(pindexNew->GetBlockTime()),
       GuessVerificationProgress(m_params.TxData(), pindexNew), this->CoinsTip().DynamicMemoryUsage() * (1.0 / (1<<20)), this->CoinsTip().GetCacheSize(),
@@ -3013,8 +3013,12 @@ void CChainState::ReceivedBlockTransactions(const CBlock& block, CBlockIndex* pi
 
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
+    const int algo = CBlockHeader::GetAlgoType(block.nVersion);
+    if ((block.nVersion >= CBlockHeader::FIRST_FORK_VERSION && algo == -1) || (block.IsProofOfStake() && block.nNonce != 0))
+        return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "invalid-type", "block type is invalid");
+
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
+    if (block.IsProofOfWork() && fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
     return true;
@@ -3169,6 +3173,10 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
 
+    // Reject new PoW algorithms until they have been activated
+    if (nHeight < 1 && CBlockHeader::GetAlgoType(block.nVersion) > CBlockHeader::AlgoType::ALGO_POW_SHA256)
+        return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "new-algo", "block using new algo before activation");
+
     // Check against checkpoints
     if (fCheckpointsEnabled) {
         // Don't accept any forks from the main chain prior to last checkpoint.
@@ -3192,7 +3200,8 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     // Reject blocks with outdated version
     if ((block.nVersion < 2 && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_HEIGHTINCB)) ||
         (block.nVersion < 3 && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_DERSIG)) ||
-        (block.nVersion < 4 && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_CLTV))) {
+        (block.nVersion < 4 && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_CLTV)) ||
+        (block.nVersion < CBlockHeader::FIRST_FORK_VERSION && nHeight >= 1)) {
             return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, strprintf("bad-version(0x%08x)", block.nVersion),
                                  strprintf("rejected nVersion=0x%08x block", block.nVersion));
     }
