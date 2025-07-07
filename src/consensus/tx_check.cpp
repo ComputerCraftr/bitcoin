@@ -3,10 +3,13 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/tx_check.h>
+#include <xep/consensus/tx_check.h>
 
 #include <consensus/amount.h>
 #include <primitives/transaction.h>
 #include <consensus/validation.h>
+
+#include <cstring>
 
 bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
 {
@@ -16,8 +19,13 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
     if (tx.vout.empty())
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vout-empty");
     // Size limits (this doesn't take the witness into account, as that hasn't been checked for malleability)
-    if (::GetSerializeSize(TX_NO_WITNESS(tx)) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT) {
+    const size_t size = ::GetSerializeSize(TX_NO_WITNESS(tx));
+    if (size * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-oversize");
+    }
+    const bool validSize = CheckTransactionSize(state, size);
+    if (!validSize) {
+        return validSize;
     }
 
     // Check for negative or overflow output values (see CVE-2010-5139)
