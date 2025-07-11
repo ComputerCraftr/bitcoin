@@ -23,7 +23,7 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
     if (size * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-oversize");
     }
-    if (!CheckTransactionSize(state, size)) {
+    if (!XEP_CheckTransactionSize(state, size)) {
         return false;
     }
 

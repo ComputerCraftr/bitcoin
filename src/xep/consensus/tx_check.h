@@ -9,7 +9,7 @@
 
 #include <cstring>
 
-bool CheckTransactionSize(TxValidationState& state, std::size_t size)
+bool XEP_CheckTransactionSize(TxValidationState& state, std::size_t size)
 {
     // 64-byte transactions are rejected to mitigate CVE-2017-12842
     if (size == 64) {
