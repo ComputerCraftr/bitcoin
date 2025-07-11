@@ -23,9 +23,8 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
     if (size * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-oversize");
     }
-    const bool validSize = CheckTransactionSize(state, size);
-    if (!validSize) {
-        return validSize;
+    if (!CheckTransactionSize(state, size)) {
+        return false;
     }
 
     // Check for negative or overflow output values (see CVE-2010-5139)
