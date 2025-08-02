@@ -135,12 +135,21 @@ def add_witness_commitment(block, nonce=0):
     block.rehash()
 
 
-def script_BIP34_coinbase_height(height):
+def script_BIP34_coinbase_height(height, pad=False):
     if height <= 16:
         res = CScriptOp.encode_op_n(height)
         # Append dummy to increase scriptSig size to 2 (see bad-cb-length consensus rule)
-        return CScript([res, OP_0])
-    return CScript([CScriptNum(height)])
+        script_array = [res, OP_0]
+        if pad:
+            script_array.append(OP_0)
+            script_array.append(OP_0)
+        return CScript(script_array)
+
+    script_array = [CScriptNum(height)]
+    if pad:
+        script_array.append(OP_0)
+        script_array.append(OP_0)
+    return CScript(script_array)
 
 
 def create_coinbase(height, pubkey=None, *, script_pubkey=None, extra_output_script=None, fees=0, nValue=50, retarget_period=REGTEST_RETARGET_PERIOD):
@@ -171,6 +180,11 @@ def create_coinbase(height, pubkey=None, *, script_pubkey=None, extra_output_scr
         coinbaseoutput2.nValue = 0
         coinbaseoutput2.scriptPubKey = extra_output_script
         coinbase.vout.append(coinbaseoutput2)
+
+    # Add padding if coinbase is exactly 64 bytes long to comply with XEP consensus rules
+    if len(coinbase.serialize_without_witness()) == 64:
+        coinbase.vin = [CTxIn(COutPoint(0, 0xffffffff), script_BIP34_coinbase_height(height, True), SEQUENCE_FINAL)]
+
     coinbase.calc_sha256()
     return coinbase
 
