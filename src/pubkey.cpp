@@ -53,7 +53,7 @@ int ecdsa_signature_parse_der_lax(secp256k1_ecdsa_signature* sig, const unsigned
     secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static, sig, tmpsig);
 
     /* Sequence tag byte */
-    if (pos == inputlen || input[pos] != 0x30) {
+    if (pos == inputlen || input[pos] != CPubKey::SigFlag::VERSION_SIG_DER) {
         return 0;
     }
     pos++;
@@ -291,11 +291,11 @@ bool CPubKey::Verify(const uint256 &hash, const std::vector<unsigned char>& vchS
     return secp256k1_ecdsa_verify(secp256k1_context_static, &sig, hash.begin(), &pubkey);
 }
 
-bool CPubKey::RecoverCompact(const uint256 &hash, const std::vector<unsigned char>& vchSig) {
-    if (vchSig.size() != COMPACT_SIGNATURE_SIZE)
+bool CPubKey::RecoverCompact(const uint256 &hash, const std::vector<unsigned char>& vchSig, unsigned char header) {
+    if (vchSig.size() != COMPACT_SIGNATURE_SIZE || header > vchSig[0] || header > CPubKey::SigFlag::VERSION_SIG_MASK)
         return false;
-    int recid = (vchSig[0] - 27) & 3;
-    bool fComp = ((vchSig[0] - 27) & 4) != 0;
+    int recid = (vchSig[0] - header) & 3;
+    bool fComp = ((vchSig[0] - header) & 4) != 0;
     secp256k1_pubkey pubkey;
     secp256k1_ecdsa_recoverable_signature sig;
     if (!secp256k1_ecdsa_recoverable_signature_parse_compact(secp256k1_context_static, &sig, &vchSig[1], recid)) {
