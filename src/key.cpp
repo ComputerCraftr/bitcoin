@@ -246,8 +246,8 @@ bool CKey::VerifyPubKey(const CPubKey& pubkey) const {
     return pubkey.Verify(hash, vchSig);
 }
 
-bool CKey::SignCompact(const uint256 &hash, std::vector<unsigned char>& vchSig) const {
-    if (!keydata)
+bool CKey::SignCompact(const uint256 &hash, std::vector<unsigned char>& vchSig, unsigned char header) const {
+    if (!keydata || header > CPubKey::SigFlag::VERSION_SIG_MASK)
         return false;
     vchSig.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
     int rec = -1;
@@ -257,7 +257,7 @@ bool CKey::SignCompact(const uint256 &hash, std::vector<unsigned char>& vchSig) 
     ret = secp256k1_ecdsa_recoverable_signature_serialize_compact(secp256k1_context_sign, &vchSig[1], &rec, &rsig);
     assert(ret);
     assert(rec != -1);
-    vchSig[0] = 27 + rec + (fCompressed ? 4 : 0);
+    vchSig[0] = header + rec + (fCompressed ? 4 : 0);
     // Additional verification step to prevent using a potentially corrupted signature
     secp256k1_pubkey epk, rpk;
     ret = secp256k1_ec_pubkey_create(secp256k1_context_sign, &epk, UCharCast(begin()));
