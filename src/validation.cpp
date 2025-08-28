@@ -2269,7 +2269,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out, cons
     if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
 
     // We have to exclude the genesis coinbase from this check because its height actually is zero and the wallet will think there is database corruption otherwise
-    if (undo.nHeight == 0 && out.hash != genesisTxid) {
+    if (undo.nHeight == 0 && (!undo.fCoinBase || out.hash != genesisTxid)) {
         // Missing undo metadata (height and coinbase). Older versions included this
         // information only in undo records for the last spend of a transactions'
         // outputs. This implies that it must be present for some other output of the same tx.
@@ -2742,7 +2742,7 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
         return true;
     }
 
-    if (pindex->GetBlockHash() != params.GetConsensus().hashGenesisBlock && !m_blockman.WriteBlockUndo(blockundo, state, *pindex)) {
+    if (!m_blockman.WriteBlockUndo(blockundo, state, *pindex)) {
         return false;
     }
 

@@ -188,10 +188,15 @@ struct SnapshotTestSetup : TestChain100Setup {
             LOCK(::cs_main);
             BOOST_CHECK(!chainman.IsSnapshotValidated());
             BOOST_CHECK(!node::FindSnapshotChainstateDir(chainman.m_options.datadir));
+
+            const CBlock& genesis = chainman.GetParams().GenesisBlock();
+            if (std::find(m_coinbase_txns.begin(), m_coinbase_txns.end(), genesis.vtx[0]) == m_coinbase_txns.end()) {
+                m_coinbase_txns.push_back(genesis.vtx[0]);
+            }
         }
 
         size_t initial_size;
-        size_t initial_total_coins{100};
+        size_t initial_total_coins{101};
 
         // Make some initial assertions about the contents of the chainstate.
         {

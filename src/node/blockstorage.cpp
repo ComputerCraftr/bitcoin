@@ -255,7 +255,7 @@ void BlockManager::PruneOneBlockFile(const int fileNumber)
             // to be downloaded again in order to consider its chain, at which
             // point it would be considered as a candidate for
             // m_blocks_unlinked or setBlockIndexCandidates.
-            auto range = m_blocks_unlinked.equal_range(pindex->pprev);
+            auto range = m_blocks_unlinked.equal_range(pindex->pprev ? pindex->pprev : pindex);
             while (range.first != range.second) {
                 std::multimap<CBlockIndex*, CBlockIndex*>::iterator _it = range.first;
                 range.first++;
@@ -685,7 +685,7 @@ bool BlockManager::ReadBlockUndo(CBlockUndo& blockundo, const CBlockIndex& index
     uint256 hashChecksum;
     HashVerifier verifier{filein}; // Use HashVerifier as reserializing may lose data, c.f. commit d342424301013ec47dc146a4beb49d5c9319d80a
     try {
-        verifier << index.pprev->GetBlockHash();
+        verifier << (index.pprev ? index.pprev->GetBlockHash() : uint256::ZERO);
         verifier >> blockundo;
         filein >> hashChecksum;
     } catch (const std::exception& e) {
@@ -966,7 +966,7 @@ bool BlockManager::WriteBlockUndo(const CBlockUndo& blockundo, BlockValidationSt
 
         // Calculate & write checksum
         HashWriter hasher{};
-        hasher << block.pprev->GetBlockHash();
+        hasher << (block.pprev ? block.pprev->GetBlockHash() : uint256::ZERO);
         hasher << blockundo;
         fileout << hasher.GetHash();
 

@@ -118,8 +118,8 @@ bool CoinStatsIndex::CustomAppend(const interfaces::BlockInfo& block)
     const CAmount block_subsidy{GetBlockSubsidy(block.height, Params().GetConsensus())};
     m_total_subsidy += block_subsidy;
 
-    // Ignore genesis block
-    if (block.height > 0) {
+    // Include genesis block
+    if (block.height >= 0) {
         // pindex variable gives indexing code access to node internals. It
         // will be removed in upcoming commit
         const CBlockIndex* pindex = WITH_LOCK(cs_main, return m_chainstate->m_blockman.LookupBlockIndex(block.hash));
@@ -127,20 +127,22 @@ bool CoinStatsIndex::CustomAppend(const interfaces::BlockInfo& block)
             return false;
         }
 
-        std::pair<uint256, DBVal> read_out;
-        if (!m_db->Read(DBHeightKey(block.height - 1), read_out)) {
-            return false;
-        }
-
-        uint256 expected_block_hash{*Assert(block.prev_hash)};
-        if (read_out.first != expected_block_hash) {
-            LogPrintf("WARNING: previous block header belongs to unexpected block %s; expected %s\n",
-                      read_out.first.ToString(), expected_block_hash.ToString());
-
-            if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
-                LogError("%s: previous block header not found; expected %s\n",
-                             __func__, expected_block_hash.ToString());
+        if (block.height > 0) {
+            std::pair<uint256, DBVal> read_out;
+            if (!m_db->Read(DBHeightKey(block.height - 1), read_out)) {
                 return false;
+            }
+
+            uint256 expected_block_hash{*Assert(block.prev_hash)};
+            if (read_out.first != expected_block_hash) {
+                LogPrintf("WARNING: previous block header belongs to unexpected block %s; expected %s\n",
+                        read_out.first.ToString(), expected_block_hash.ToString());
+
+                if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
+                    LogError("%s: previous block header not found; expected %s\n",
+                                __func__, expected_block_hash.ToString());
+                    return false;
+                }
             }
         }
 
@@ -413,25 +415,27 @@ bool CoinStatsIndex::ReverseBlock(const CBlock& block, const CBlockIndex* pindex
     const CAmount block_subsidy{GetBlockSubsidy(pindex->nHeight, Params().GetConsensus())};
     m_total_subsidy -= block_subsidy;
 
-    // Ignore genesis block
-    if (pindex->nHeight > 0) {
+    // Include genesis block
+    if (pindex->nHeight >= 0) {
         if (!m_chainstate->m_blockman.ReadBlockUndo(block_undo, *pindex)) {
             return false;
         }
 
-        if (!m_db->Read(DBHeightKey(pindex->nHeight - 1), read_out)) {
-            return false;
-        }
-
-        uint256 expected_block_hash{pindex->pprev->GetBlockHash()};
-        if (read_out.first != expected_block_hash) {
-            LogPrintf("WARNING: previous block header belongs to unexpected block %s; expected %s\n",
-                      read_out.first.ToString(), expected_block_hash.ToString());
-
-            if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
-                LogError("%s: previous block header not found; expected %s\n",
-                             __func__, expected_block_hash.ToString());
+        if (pindex->nHeight > 0) {
+            if (!m_db->Read(DBHeightKey(pindex->nHeight - 1), read_out)) {
                 return false;
+            }
+
+            uint256 expected_block_hash{pindex->pprev->GetBlockHash()};
+            if (read_out.first != expected_block_hash) {
+                LogPrintf("WARNING: previous block header belongs to unexpected block %s; expected %s\n",
+                        read_out.first.ToString(), expected_block_hash.ToString());
+
+                if (!m_db->Read(DBHashKey(expected_block_hash), read_out)) {
+                    LogError("%s: previous block header not found; expected %s\n",
+                                __func__, expected_block_hash.ToString());
+                    return false;
+                }
             }
         }
     }
