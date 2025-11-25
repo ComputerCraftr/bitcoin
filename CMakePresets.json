@@ -83,6 +83,33 @@
         "WITH_USDT": "ON",
         "WITH_ZMQ": "ON"
       }
+    },
+    {
+      "name": "xep-dev-mode",
+      "displayName": "Developer mode, with XEP features/dependencies enabled",
+      "binaryDir": "${sourceDir}/build_dev_mode",
+      "errors": { "dev": true },
+      "cacheVariables": {
+        "BUILD_BENCH": "ON",
+        "BUILD_CLI": "ON",
+        "BUILD_DAEMON": "ON",
+        "BUILD_FUZZ_BINARY": "ON",
+        "BUILD_GUI": "ON",
+        "BUILD_GUI_TESTS": "ON",
+        "BUILD_KERNEL_LIB": "ON",
+        "BUILD_SHARED_LIBS": "ON",
+        "BUILD_TESTS": "ON",
+        "BUILD_TX": "ON",
+        "BUILD_UTIL": "ON",
+        "BUILD_UTIL_CHAINSTATE": "ON",
+        "BUILD_WALLET_TOOL": "ON",
+        "ENABLE_EXTERNAL_SIGNER": "ON",
+        "ENABLE_WALLET": "ON",
+        "ENABLE_IPC": "OFF",
+        "WITH_QRENCODE": "ON",
+        "WITH_USDT": "OFF",
+        "WITH_ZMQ": "ON"
+      }
     }
   ]
 }
