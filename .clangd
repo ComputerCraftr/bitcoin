@@ -1,0 +1,10 @@
+CompileFlags:
+  CompilationDatabase: build_dev_mode
+  Remove:
+    - -fno-extended-identifiers
+    - -fstack-reuse=none
+  Add:
+    - -Wno-unknown-warning-option
+
+Index:
+  Background: Build
